@@ -1,0 +1,56 @@
+SYSTEM ARCHITECTURE 
+-------------------------------------------------------
+BankProjectCT/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                       # FastAPI app entry point
+│   │   ├── controllers/
+│   │   │   ├── account_controller.py     # Account HTTP request handlers
+│   │   │   └── transaction_controller.py # Transaction HTTP request handlers
+│   │   ├── models/
+│   │   │   ├── user.py                   # Pydantic & DB models
+│   │   │   ├── account.py
+│   │   │   └── transaction.py
+│   │   ├── services/
+│   │   │   ├── account_service.py        # Business logic
+│   │   │   └── transaction_service.py
+│   │   ├── repositories/
+│   │   │   ├── user_repository.py        # DB queries
+│   │   │   ├── account_repository.py
+│   │   │   └── transaction_repository.py
+│   │   ├── schemas/
+│   │   │   ├── account_schema.py         # Pydantic request/response shapes
+│   │   │   └── transaction_schema.py
+│   │   └── database/
+│   │       └── db.py                     # Motor MongoDB Atlas connection
+│   ├── config.py                         # App settings, MongoDB config
+│   ├── .env                              # MongoDB Atlas connection string
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── public/
+│   │   └── index.html                   # Root HTML shell
+│   ├── src/
+│   │   ├── App.jsx                      # Root React component
+│   │   ├── index.js                     # React entry point
+│   │   ├── components/
+│   │   │   ├── Navbar.jsx               # Reusable navbar
+│   │   │   ├── Button.jsx               # Reusable button
+│   │   │   ├── AccountCard.jsx          # Reusable account display
+│   │   │   └── TransactionCard.jsx      # Reusable transaction row
+│   │   ├── pages/
+│   │   │   ├── Home.jsx                 # Home page
+│   │   │   ├── CreateAccount.jsx        # Create account page
+│   │   │   ├── AccountDetails.jsx       # Account details page
+│   │   │   ├── Deposit.jsx              # Deposit page
+│   │   │   ├── Withdraw.jsx             # Withdraw page
+│   │   │   └── Transactions.jsx         # Transaction history page
+│   │   ├── services/
+│   │   │   └── api.js                   # Axios calls to FastAPI backend
+│   │   └── styles/
+│   │       └── main.css                 # Global styles
+│   ├── package.json
+│   └── .env                             # REACT_APP_API_URL=http://localhost:8000
+│
+└── task_doc/
+    └── plan.txt

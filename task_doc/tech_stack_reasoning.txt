@@ -1,0 +1,162 @@
+=======================================================
+       BANKING SYSTEM - TECH STACK REASONING
+=======================================================
+
+-------------------------------------------------------
+1. BACKEND: Python + FastAPI
+-------------------------------------------------------
+We initially considered three backend options:
+  - Node.js
+  - Spring Boot (Java)
+  - Python
+
+We chose Python for the following reasons:
+  - Clean and readable syntax with less boilerplate than Java/Spring Boot
+  - Faster to get a REST API running compared to Spring Boot
+  - Easier to debug and maintain for a project of this scope
+  - Spring Boot was considered too heavyweight for this project size
+
+Within Python, we evaluated Flask vs FastAPI:
+
+  Flask
+  - Simpler and more beginner friendly
+  - Large community and many tutorials
+  - However, no built-in Swagger support (requires extra libraries)
+  - No built-in data validation
+  - Synchronous by default
+
+  FastAPI (CHOSEN)
+  - Auto-generates Swagger UI at /docs with zero configuration
+  - This was a key factor since Swagger is already in our toolset
+  - Built-in Pydantic validation protects banking logic from bad input
+    (e.g. negative deposits, missing fields)
+  - Async support out of the box for better performance
+  - Modern and growing fast in industry adoption
+  - Postman and Swagger together make testing the banking API much easier
+
+-------------------------------------------------------
+2. FRONTEND: React (JSX) + Bootstrap → Tailwind CSS
+-------------------------------------------------------
+We chose React JSX over plain HTML/CSS/JavaScript for two main reasons:
+
+  Component Reusability
+  - In React everything is a component, built once and reused everywhere
+  - For this banking app specifically:
+      - Button.jsx     → used on every page (Deposit, Withdraw, Submit)
+      - Navbar.jsx     → sits on every page without rewriting it
+      - AccountCard.jsx    → reused wherever account info is displayed
+      - TransactionCard.jsx → reused in transaction history list
+  - If a button style needs to change, it is updated in one place
+    and reflects across the entire application automatically
+
+  Wide Device Availability
+  - React pairs naturally with CSS tools that handle responsiveness
+  - Components scale across desktop, tablet, and mobile
+  - React Router handles navigation between pages without full reloads
+  - State management keeps balance and transaction data live without refreshing
+
+  CSS Framework Decision - Bootstrap First, Tailwind Later
+  - We decided to start with Bootstrap because:
+      - Faster to build UI while focused on backend functionality
+      - Pre-built components (buttons, forms, tables) reduce styling decisions
+      - Large documentation and community support
+      - Less decision fatigue while core features are being built
+
+  - We plan to transition to Tailwind CSS later because:
+      - More customizable and modern than Bootstrap
+      - Utility-first approach gives full design control
+      - Apps built with Tailwind have a more unique look vs generic Bootstrap
+
+  - The transition is smooth because:
+      - Both are just CSS class names applied to JSX components
+      - Since the frontend is componentized, only class names need updating
+      - No restructuring of files or components is required
+      - Example: btn btn-primary (Bootstrap) becomes
+        bg-blue-500 text-white px-4 py-2 rounded (Tailwind)
+
+  HTTP Client - Axios
+  - Axios is used in api.js as the single point of contact
+    between the React frontend and the FastAPI backend
+  - Cleaner syntax than native fetch
+  - Easy to set a base URL via .env file
+
+-------------------------------------------------------
+3. DATABASE: MySQL
+-------------------------------------------------------
+  - Already installed via MySQL Workbench on this machine
+  - Relational data fits banking perfectly
+    (users, accounts, transactions have clear relationships via foreign keys)
+  - Industry standard for transactional systems
+  - Supports FOREIGN KEY constraints which enforce data integrity
+    between users, accounts, and transactions
+
+  CRUD Compliance
+  - The database and API follow CRUD standards:
+      CREATE  → POST   /api/accounts
+      READ    → GET    /api/accounts/{id}
+      READ    → GET    /api/accounts/{id}/transactions
+      UPDATE  → POST   /api/accounts/{id}/deposit
+      UPDATE  → POST   /api/accounts/{id}/withdraw
+      DELETE  → Intentionally excluded
+  - Delete is excluded because banks never delete transaction records
+    It is an audit and compliance requirement
+  - Account closure would be handled as an UPDATE (status flag) not a DELETE
+
+-------------------------------------------------------
+4. ORM: SQLAlchemy
+-------------------------------------------------------
+  - Maps Python classes directly to MySQL tables
+  - No raw SQL needed in application code
+  - Prevents SQL injection by default
+  - Easy to migrate from in-memory store to MySQL
+    when database integration session begins
+
+-------------------------------------------------------
+5. TOOLS
+-------------------------------------------------------
+  VS Code
+  - Primary IDE for writing and managing all project files
+  - MySQL Shell for VS Code extension connects directly to MySQL
+    and detects existing MySQL Workbench connections automatically
+
+  Postman
+  - Used to test all REST API endpoints manually
+  - Postman does not connect directly to MySQL
+  - It talks to the FastAPI backend which then talks to the database
+  - Flow: Postman → FastAPI Backend → MySQL
+
+  Swagger (Auto-generated by FastAPI)
+  - FastAPI generates a /docs endpoint automatically with zero configuration
+  - This was a deciding factor in choosing FastAPI over Flask
+  - Allows testing all endpoints directly in the browser
+  - Used alongside Postman for full API testing coverage
+
+  MySQL Workbench
+  - Already installed, used to manage the MySQL database visually
+  - Used to create schemas, run SQL, and manage connections
+  - MySQL Shell for VS Code extension detects Workbench connections
+
+-------------------------------------------------------
+6. ARCHITECTURE PATTERN: MVC (Model-View-Controller)
+-------------------------------------------------------
+  We follow a layered MVC architecture:
+  Frontend (UI) → Controllers → Services → Repositories → Database
+
+  Controllers
+  - Handle incoming HTTP requests
+  - Return HTTP responses
+  - No business logic lives here
+
+  Services
+  - Contain all business logic
+  - e.g. checking balance before withdrawal, validating deposit amount
+
+  Repositories
+  - Handle all database queries
+  - Keeps DB logic separate from business logic
+
+  Models / Schemas
+  - Pydantic models define and validate request/response data shapes
+  - Protects the API from receiving bad or malformed data
+
+=======================================================
