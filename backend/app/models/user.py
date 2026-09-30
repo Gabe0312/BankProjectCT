@@ -1,9 +1,3 @@
-from pydantic import BaseModel, EmailStr
-from datetime import datetime
-
-
-class User(BaseModel):
-    user_id: int
-    name: str
-    email: EmailStr
-    created_at: datetime = None
+# user.py has been merged into customer.py
+# User and Customer are the same entity in this system
+# Import from app.models.customer instead

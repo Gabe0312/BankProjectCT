@@ -246,18 +246,19 @@ TODAY - PHASE 4: Test with Postman & Swagger
 FUTURE SESSIONS (NOT TODAY)
 -------------------------------------------------------
 
-FUTURE - PHASE 5: MongoDB Atlas Integration
-  [ ] Create MongoDB Atlas account and cluster
-  [ ] Install Motor (async MongoDB driver)
-  [ ] Set up database/db.py with MongoDB Atlas connection string
-  [ ] Store connection string in .env file
-  [ ] Migrate in-memory store to MongoDB collections
-  [ ] Build User collection model
-  [ ] Build Account collection model (with embedded transactions)
-  [ ] Update repositories to use MongoDB queries
-  [ ] *** DELETE backend/app/data/store.py once MongoDB connection is established ***
-      → This file is temporary, used only for in-memory data during today's session
-      → All data storage will be handled by MongoDB Atlas after this phase
+FUTURE - PHASE 5: MongoDB Atlas Integration  COMPLETE
+  [x] Create MongoDB Atlas account and cluster
+  [x] Install Motor (async MongoDB driver)
+  [x] Set up database/db.py with MongoDB Atlas connection string
+  [x] Store connection string in .env file
+  [x] Migrate in-memory store to MongoDB collections
+  [x] Build Customer collection model (merged from User — Option 2 decision)
+  [x] Build Account collection model (with embedded transactions)
+  [x] Build Audit collection model (separate collection for compliance)
+  [x] Update repositories to use MongoDB async Motor queries
+  [x] Add Customer, Account, Audit services and controllers (full CRUD)
+  [x] DELETE backend/app/data/store.py — removed, MongoDB Atlas confirmed
+  [x] DELETE backend/app/repositories/user_repository.py — replaced by customer_repository.py
 
 FUTURE - PHASE 6: Frontend (React + Bootstrap)
   [ ] Set up React app (create-react-app or Vite)

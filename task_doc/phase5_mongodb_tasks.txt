@@ -1,0 +1,223 @@
+=======================================================
+  PHASE 5: MongoDB Atlas Integration — Master Task List
+=======================================================
+
+FEATURE PRIORITIES
+=======================================================
+  Priority 1 — Customer CRUD (full vertical slice, MongoDB-first)
+  Priority 2 — Account CRUD + Financial Operations (migrate + expand)
+  Priority 3 — Audit Trail (new vertical slice, compliance/fraud prevention)
+
+PREREQUISITES (you do manually, not code changes)
+  [x] 5.0.1  Create MongoDB Atlas account at cloud.mongodb.com
+  [x] 5.0.2  Create free M0 cluster
+  [x] 5.0.3  Whitelist your IP address (Network Access)
+  [x] 5.0.4  Create a DB user (Database Access)
+  [x] 5.0.5  Get connection string and paste into backend/.env
+
+-------------------------------------------------------
+STEP 1 — DB Connection & Lifecycle                        COMPLETE
+-------------------------------------------------------
+  [x] 5.1.1  Update backend/.env with real Atlas connection string
+  [x] 5.1.2  Rewrite app/database/db.py
+              - Use FastAPI lifespan context manager (not deprecated on_event)
+              - connect on startup, close on shutdown
+              - expose get_database() for repositories to call
+  [x] 5.1.3  Rewrite app/main.py
+              - Wire lifespan from db.py into FastAPI app
+              - Register all routers (customer, account, audit)
+
+-------------------------------------------------------
+STEP 2 — Models (ID type change + MongoDB serialization)  COMPLETE
+-------------------------------------------------------
+  [x] 5.2.1  Rewrite app/models/transaction.py
+              - txn_id: int  ->  txn_id: str (ObjectId as string)
+  [x] 5.2.2  Rewrite app/models/account.py
+              - account_id: int  ->  account_id: str
+              - user_id: int     ->  customer_id: str      [RENAMED - Option 2]
+              - userId in CreateAccountRequest -> customerId [RENAMED - Option 2]
+              - Add PyObjectId helper for MongoDB _id serialization
+              - Add TransferRequest model                  [NEW]
+              - Add UpdateAccountRequest model             [NEW]
+  [x] 5.2.3  Rewrite app/models/user.py
+              - MERGED into customer.py (Option 2 decision)
+              - user.py replaced with deprecation comment
+              - Import from app.models.customer instead
+  [x] 5.2.4  Create app/models/customer.py          [NEW - Priority 1]
+              - customer_id: str (ObjectId)
+              - name: str
+              - email: EmailStr
+              - phone: str                                 [replaces user.py]
+              - created_at: datetime
+              - CreateCustomerRequest, UpdateCustomerRequest models
+  [x] 5.2.5  Create app/models/audit.py             [NEW - Priority 3]
+              - audit_id: str (ObjectId)
+              - transaction_type: str (DEPOSIT / WITHDRAWAL / TRANSFER)
+              - customer_id: str
+              - accounts_involved: List[str]  (1 for dep/withdraw, 2 for transfer)
+              - amount: float
+              - timestamp: datetime
+              - note: str (optional, e.g. "fraud flag", "transfer memo")
+
+-------------------------------------------------------
+STEP 3 — Repositories (swap store.py -> Motor async DB calls)  COMPLETE
+-------------------------------------------------------
+  [x] 5.3.1  Rewrite app/repositories/account_repository.py
+              - async save(account)              -> db.accounts.insert_one / replace_one
+              - async find_by_id(id)             -> db.accounts.find_one
+              - async find_all()                 -> db.accounts.find()          [NEW]
+              - async find_by_customer_id(id)    -> db.accounts.find()          [NEW]
+              - async find_premium(threshold)    -> db.accounts.find(balance>=) [NEW]
+              - async delete_by_id(id)           -> db.accounts.delete_one      [NEW]
+              - async update(id, fields)         -> db.accounts.update_one      [NEW]
+  [x] 5.3.2  Rewrite app/repositories/transaction_repository.py
+              - async append(account_id, txn)    -> $push into embedded transactions array
+              - async find_by_account_id(id)     -> find_one + return transactions field
+  [x] 5.3.3  Delete app/repositories/user_repository.py
+              - Replaced with deprecation comment (deleted in Step 6)
+  [x] 5.3.4  Create app/repositories/customer_repository.py  [NEW - Priority 1]
+              - async save(customer)             -> db.customers.insert_one
+              - async find_by_id(id)             -> db.customers.find_one
+              - async find_all()                 -> db.customers.find()
+              - async update(id, fields)         -> db.customers.update_one
+              - async delete_by_id(id)           -> db.customers.delete_one
+  [x] 5.3.5  Create app/repositories/audit_repository.py     [NEW - Priority 3]
+              - async save(audit_record)         -> db.audit.insert_one
+              - async find_by_account_id(id)     -> db.audit.find(accounts_involved)
+              - async find_by_customer_id(id)    -> db.audit.find(customer_id)
+              - async find_all()                 -> db.audit.find()
+
+-------------------------------------------------------
+STEP 4 — Service Layer (sync -> async)                    COMPLETE
+-------------------------------------------------------
+  [x] 5.4.1  Rewrite app/services/account_service.py
+              - All methods become async def
+              - Remove store.py counter imports
+              - IDs now come from MongoDB inserted_id (ObjectId -> str)
+              - async get_all_accounts()                        [NEW]
+              - async get_accounts_by_customer(customer_id)    [NEW]
+              - async get_premium_accounts(threshold)          [NEW]
+              - async update_account(account_id, fields)       [NEW]
+              - async delete_account(account_id)               [NEW]
+              - async transfer(from_id, to_id, amount)         [NEW]
+                  -> debit from_account, credit to_account, write audit record
+  [x] 5.4.2  Create app/services/customer_service.py          [NEW - Priority 1]
+              - async create_customer(...)
+              - async get_customer(customer_id)
+              - async get_all_customers()
+              - async update_customer(customer_id, fields)
+              - async delete_customer(customer_id)
+  [x] 5.4.3  Create app/services/audit_service.py             [NEW - Priority 3]
+              - async log(transaction_type, customer_id,
+                          accounts_involved, amount, note)
+              - async get_by_account(account_id)
+              - async get_by_customer(customer_id)
+              - async get_all()
+
+-------------------------------------------------------
+STEP 5 — Controller Layer (sync -> async)                 COMPLETE
+-------------------------------------------------------
+  [x] 5.5.1  Rewrite app/controllers/account_controller.py
+              KNOWN ISSUES FIXED:
+              - body.userId -> body.customerId              [FIXED]
+              - account_id: int -> account_id: str          [FIXED - all handlers]
+              - all def -> async def                        [FIXED]
+              - /accounts/transfer moved above /{account_id} [FIXED - route conflict]
+              ENDPOINTS ADDED:
+              - GET    /accounts                              -> get_all_accounts
+              - PUT    /accounts/{account_id}                -> update_account  [NEW]
+              - DELETE /accounts/{account_id}                -> delete_account  [NEW]
+              - GET    /accounts/premium?threshold=X         -> get_premium     [NEW]
+              - GET    /customers/{customer_id}/accounts     -> by customer     [NEW]
+              - POST   /accounts/transfer                    -> transfer        [NEW]
+  [x] 5.5.2  Create app/controllers/customer_controller.py  [NEW - Priority 1]
+              - GET    /customers                            -> get_all_customers
+              - POST   /customers                            -> create_customer
+              - GET    /customers/{customer_id}              -> get_customer
+              - PUT    /customers/{customer_id}              -> update_customer
+              - DELETE /customers/{customer_id}              -> delete_customer
+  [x] 5.5.3  Create app/controllers/audit_controller.py     [NEW - Priority 3]
+              - GET    /audit                                -> get_all
+              - GET    /audit/account/{account_id}          -> by account
+              - GET    /audit/customer/{customer_id}        -> by customer
+
+-------------------------------------------------------
+STEP 6 — Cleanup
+-------------------------------------------------------
+  [ ] 5.6.1  Delete app/data/store.py
+              (only after all endpoints verified working against Atlas)
+  [ ] 5.6.2  Delete app/repositories/user_repository.py
+              (replaced by customer_repository.py)
+  [ ] 5.6.3  Update plan.txt to mark Phase 5 tasks complete
+
+=======================================================
+DECISION MAKING NOTES
+=======================================================
+
+1. IDs: int -> str (ObjectId)
+   MongoDB auto-generates _id as ObjectId. Represented as str in Python.
+   Ripples through every model, service, and controller.
+
+2. Async everywhere
+   Motor is fully async — every DB call must be awaited.
+   Repositories, services, and route handlers all become async def.
+   FastAPI handles this natively.
+
+3. Model split: request/response vs. DB document shape
+   Request models stay as Pydantic BaseModel.
+   PyObjectId helper added to serialize MongoDB _id -> str for responses.
+
+4. Transactions: embedded in account document
+   Transactions are stored as an embedded array inside the account document.
+   transaction_repository uses MongoDB $push operator, not a separate collection.
+   Correct for this use case — transactions always accessed via account context.
+
+5. Audit log: separate MongoDB collection (NOT embedded)
+   Audit records must be queryable across all accounts and customers for
+   compliance purposes. Embedding inside account documents would make
+   cross-account queries impossible. Separate collection is the right call.
+   Every deposit, withdrawal, and transfer writes one audit record.
+
+6. Transfer: service-layer operation
+   Transfer is a two-account operation (debit one, credit another).
+   Lives in account_service.py. Both account updates + audit write happen
+   together. MongoDB does not enforce multi-document transactions on M0,
+   so order is: debit -> credit -> audit. Failure after debit is logged in audit.
+
+7. getPremiumAccounts(threshold)
+   MongoDB query: db.accounts.find({ balance: { $gte: threshold } })
+   Exposed as GET /accounts/premium?threshold=X
+
+8. store.py stays until the end
+   Deleted only after MongoDB is confirmed working (task 5.6.1).
+
+9. db.py uses FastAPI lifespan context manager
+   Modern approach — replaces deprecated on_event startup/shutdown hooks.
+
+10. user.py merged into customer.py (Option 2)
+    user.py and customer.py were the same entity with one extra field (phone).
+    Decision: merge into customer.py, drop user.py, rename user_id -> customer_id
+    throughout account.py and all future repositories/services/controllers.
+
+11. account_controller.py has 3 known broken references (fixed in Step 5)
+    - body.userId -> body.customerId
+    - account_id: int -> account_id: str (all 4 route handlers)
+    - sync def -> async def (all route handlers)
+
+=======================================================
+EXECUTION ORDER
+=======================================================
+.env / db.py / main.py  ->  Models  ->  Repositories  ->  Services  ->  Controllers
+
+Priority 1 (Customer) -> Priority 2 (Account) -> Priority 3 (Audit)
+
+Each layer depends on the one below it. Cannot write async repositories
+without the DB connection. Cannot write the service without repositories.
+Controller is last — it is the thinnest layer.
+Audit is last feature because it depends on account + customer IDs existing.
+
+=======================================================
+CURRENT STATUS:  Steps 1-5 Complete — Pending Atlas verification for Step 6
+NEXT ACTION:     Start server, test all endpoints in Swagger UI (/docs),
+                 then execute Step 6 cleanup (delete store.py, user_repository.py)
+=======================================================
