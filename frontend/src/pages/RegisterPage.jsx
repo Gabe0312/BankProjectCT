@@ -29,7 +29,7 @@ const validate = (form) => {
   else if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address'
 
   if (!form.phone.trim())                             e.phone = 'Phone is required'
-  else if (!/^\d{7,}$/.test(form.phone.trim()))       e.phone = 'Phone must be at least 7 digits'
+  else if (!/^[\d\s().+-]{7,}$/.test(form.phone.trim())) e.phone = 'Enter a valid phone number'
 
   return e
 }
