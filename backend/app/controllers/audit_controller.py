@@ -1,23 +1,23 @@
-from fastapi import APIRouter
-from typing import List
+from fastapi import APIRouter, Depends
 import app.services.audit_service as audit_service
+from app.dependencies.jwt_dependencies import require_admin
 
 router = APIRouter()
 
 
-# GET /audit — return all audit records for full compliance and fraud review
-@router.get("/audit", response_model=List[dict])
-async def get_all():
+# GET /audit — admin only, returns all audit records for compliance and fraud review
+@router.get("/audit")
+async def get_all(current_user: dict = Depends(require_admin)):
     return await audit_service.get_all()
 
 
-# GET /audit/account/{account_id} — return all audit records for a specific account
-@router.get("/audit/account/{account_id}", response_model=List[dict])
-async def get_by_account(account_id: str):
-    return await audit_service.get_by_account(account_id)
+# GET /audit/account/{account_number} — admin only, returns all audit records for a specific account
+@router.get("/audit/account/{account_number}")
+async def get_by_account(account_number: str, current_user: dict = Depends(require_admin)):
+    return await audit_service.get_by_account(account_number)
 
 
-# GET /audit/customer/{customer_id} — return all audit records for a specific customer
-@router.get("/audit/customer/{customer_id}", response_model=List[dict])
-async def get_by_customer(customer_id: str):
-    return await audit_service.get_by_customer(customer_id)
+# GET /audit/customer/{customer_number} — admin only, returns all audit records for a specific customer
+@router.get("/audit/customer/{customer_number}")
+async def get_by_customer(customer_number: str, current_user: dict = Depends(require_admin)):
+    return await audit_service.get_by_customer(customer_number)

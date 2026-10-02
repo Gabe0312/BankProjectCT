@@ -30,6 +30,7 @@ class CreateAccountRequest(BaseModel):
     # customerId references the customer who owns this account
     customerId: str
     accountType: AccountType
+    nickname: Optional[str] = None
 
 
 # Request model for deposit and withdrawal operations
@@ -47,6 +48,11 @@ class TransferRequest(BaseModel):
 # Request model for updating an existing account
 class UpdateAccountRequest(BaseModel):
     account_type: Optional[AccountType] = None
+
+
+# Request model for updating account nickname
+class NicknameRequest(BaseModel):
+    nickname: Optional[str] = None
 
 
 # Core account document model — maps to the accounts collection in MongoDB

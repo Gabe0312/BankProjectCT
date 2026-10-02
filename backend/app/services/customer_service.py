@@ -1,6 +1,11 @@
+import random
 from datetime import datetime
 from fastapi import HTTPException
 import app.repositories.customer_repository as customer_repo
+
+
+def _generate_customer_number() -> str:
+    return "CUST-" + str(random.randint(100000, 999999))
 
 
 # create_customer: inserts a new customer document into the customers collection
@@ -9,8 +14,9 @@ async def create_customer(name: str, email: str, phone: str) -> dict:
         "name": name,
         "email": email,
         "phone": phone,
+        "customer_number": _generate_customer_number(),
         # Timestamp of when the customer was created
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.utcnow().isoformat() + "Z"
     }
     # MongoDB generates the _id on insert — returned as str
     return await customer_repo.save(customer)

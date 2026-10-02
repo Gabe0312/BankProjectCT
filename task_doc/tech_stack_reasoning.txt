@@ -112,6 +112,75 @@ We chose React JSX over plain HTML/CSS/JavaScript for two main reasons:
     when database integration session begins
 
 -------------------------------------------------------
+4b. SECURITY LIBRARIES: python-jose + passlib[bcrypt]
+-------------------------------------------------------
+  These two libraries were added in Phase 6 to support JWT authentication.
+
+  python-jose[cryptography]
+  - Implements the JOSE (JSON Object Signing and Encryption) standard
+  - Used in jwt_service.py to CREATE and DECODE JWT tokens
+  - On login: encodes { username, role, customer_id } into a signed token string
+  - On every protected request: decodes and verifies the token signature
+  - Uses HS256 algorithm (HMAC + SHA-256) with a SECRET_KEY from .env
+  - If the token is tampered with or expired, jose raises JWTError -> 401
+  - Why jose over PyJWT:
+      - python-jose supports a broader set of JOSE standards
+      - Widely used in FastAPI community and documentation
+      - cryptography extra adds stronger key support
+
+  passlib[bcrypt]
+  - Used in auth_service.py to HASH and VERIFY passwords
+  - On register: plain text password -> bcrypt hash -> stored in MongoDB
+  - On login: bcrypt.verify(plain_text, stored_hash) -> True or False
+  - Plain text passwords are NEVER stored anywhere in the system
+  - bcrypt is intentionally slow (work factor) to resist brute force attacks
+  - Why bcrypt over md5/sha256:
+      - md5 and sha256 are fast hash functions — bad for passwords
+      - bcrypt is designed specifically for password hashing
+      - Each hash includes a random salt so identical passwords hash differently
+      - Industry standard for password storage
+
+  How they work together in the auth flow:
+    REGISTER:
+      plain password -> passlib bcrypt hash -> saved to MongoDB
+    LOGIN:
+      passlib verifies plain password against stored hash
+      -> python-jose creates JWT { username, role, customer_id }
+      -> JWT returned to frontend, stored in localStorage
+    PROTECTED REQUEST:
+      frontend sends JWT in Authorization: Bearer header
+      -> python-jose decodes and verifies token
+      -> role checked by require_admin() or require_customer()
+      -> 200 OK or 403 Forbidden
+
+-------------------------------------------------------
+4c. MOTOR + PYDANTIC — Why They Work Together with FastAPI
+-------------------------------------------------------
+  Motor (AsyncIOMotorClient)
+  - Motor is the async MongoDB driver used instead of PyMongo
+  - PyMongo is synchronous — every database call would block FastAPI's
+    event loop, eliminating the performance benefit of using async
+  - Motor works asynchronously alongside FastAPI so database calls
+    do not block other requests while waiting for MongoDB to respond
+  - This is why every repository method is defined with async def
+
+  Pydantic (built into FastAPI)
+  - Pydantic is FastAPI's model validation layer
+  - Every incoming request is checked against the Pydantic model
+    definition before it ever reaches the service or database layer
+  - If the data is invalid (wrong type, missing field, bad value)
+    FastAPI rejects it immediately and returns a 422 error
+  - This is an essential protection layer for a banking system
+    where bad data reaching the database could corrupt records
+
+  Why they matter together:
+  - Pydantic ensures only valid, correctly shaped data enters the system
+  - Motor ensures that once valid data is confirmed, the database
+    write happens asynchronously without blocking the application
+  - Together they form the validation + persistence pipeline that
+    makes FastAPI the right choice for this project
+
+-------------------------------------------------------
 5. TOOLS
 -------------------------------------------------------
   VS Code

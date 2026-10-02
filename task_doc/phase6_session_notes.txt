@@ -1,0 +1,327 @@
+=====================================================
+  PHASE 6 SESSION NOTES — React Frontend + Auth
+=====================================================
+
+Status:   COMPLETE
+Branch:   ReactBankFrontend
+
+-----------------------------------------------------
+WHAT WAS DONE THIS SESSION
+-----------------------------------------------------
+
+Phase 6 built the entire React frontend and wired it to the
+FastAPI backend, including JWT authentication, all pages,
+reusable components, a full API service layer, Tailwind CSS
+styling, and final error handling cleanup.
+
+-----------------------------------------------------
+BACKEND ADDITIONS (6.0.x)
+-----------------------------------------------------
+- Added users collection to MongoDB Atlas
+    Fields: username, password_hash (bcrypt), role, customer_id, created_at
+- Created app/models/user_auth.py
+    Models: UserAuth, RegisterRequest, LoginRequest, LoginResponse
+- Created app/repositories/user_auth_repository.py
+    Methods: save, find_by_username, find_all
+- Created app/services/auth_service.py
+    - register(): rejects reserved username "admin", hashes password with bcrypt,
+      creates customer document, saves user_auth document with customer_id link
+    - login(): verifies bcrypt hash, generates JWT with { username, role, customer_id }
+    - Two token types: AdminToken (role: admin), CustomerToken (role: customer)
+- Created app/services/jwt_service.py
+    Methods: create_access_token, decode_token
+- Created app/controllers/auth_controller.py
+    POST /auth/register, POST /auth/login, GET /auth/users (admin only)
+- Registered auth_controller router in main.py
+- Installed python-jose[cryptography] and passlib[bcrypt]
+- Added JWT middleware / FastAPI dependencies:
+    get_current_user(), require_admin(), require_customer_self(customer_id)
+- Protected all existing routes:
+    /api/admin/* -> require_admin()
+    /api/customerDashboard/{id} -> require_customer_self(id)
+- Fixed missing "Z" on timestamps in customer_service.py,
+  auth_service.py, and audit_service.py
+
+- Admin account seeded directly in MongoDB Atlas (not via register endpoint):
+    db.users.insertOne({ username: "admin", password_hash: "<bcrypt>",
+    role: "admin", customer_id: null, created_at: new Date() })
+
+-----------------------------------------------------
+FRONTEND PROJECT SETUP (6.1.x)
+-----------------------------------------------------
+- Scaffolded React app at BankProjectCT/frontend/ using Vite
+- Installed: axios, react-router-dom, bootstrap (later removed)
+- Imported Bootstrap in main.jsx
+- Added Google Fonts (Inter) to index.html
+- Applied Inter globally in index.css
+- Created frontend/.env with VITE_API_URL=http://127.0.0.1:8000
+- Created src/services/api.js — Axios instance, JWT interceptor,
+  401/403 handling, structured { data } / { error } returns
+
+-----------------------------------------------------
+ROUTING (6.2.x)
+-----------------------------------------------------
+- Set up React Router in App.jsx with all 13 routes
+- Created ProtectedRoute component — reads role from localStorage,
+  redirects to /login if unauthenticated or wrong role
+
+-----------------------------------------------------
+AUTH PAGES (6.3.x)
+-----------------------------------------------------
+- WelcomePage.jsx — public landing, Header + Footer nested,
+  appName prop passed parent->child, Login/Register buttons
+- RegisterPage.jsx — calls POST /auth/register, rejects "admin" username,
+  shows error on taken/reserved username, redirects to /login on success
+- LoginPage.jsx — calls POST /auth/login, stores JWT + role + customer_id
+  + username in localStorage, redirects admin -> /admin/dashboard,
+  customer -> /dashboard
+- Logout — clears localStorage, redirects to /welcome
+
+-----------------------------------------------------
+PAGES (6.4.x)
+-----------------------------------------------------
+Customer pages (role: customer):
+  - CustomerDashboard.jsx   — lists all accounts, total balance banner,
+                              AccountCard per account, Create New Account button
+  - CreateAccountPage.jsx   — dropdown for account type, calls POST /api/accounts
+  - DepositPage.jsx         — amount input, calls POST /api/accounts/{id}/deposit
+  - WithdrawPage.jsx        — amount input, calls POST /api/accounts/{id}/withdraw,
+                              shows insufficient funds error
+  - TransactionHistoryPage.jsx — table of transactions, >= 7 rows rendered
+
+Admin pages (role: admin):
+  - AdminDashboard.jsx      — overview panel, links to all admin sections
+  - CustomersPage.jsx       — GET /api/customers table, View Accounts + Delete per row,
+                              search by first name, >= 7 customers list demo
+  - AccountsPage.jsx        — GET /api/accounts table, Premium Accounts filter by threshold
+  - AuditPage.jsx           — GET /api/audit table, filter by account / by customer
+  - UsersPage.jsx           — GET /auth/users table, all registered users
+
+-----------------------------------------------------
+REUSABLE COMPONENTS (6.5.x)
+-----------------------------------------------------
+- Header.jsx        — appName, username, role props (parent->child),
+                      onLogout callback (child->parent)
+- Footer.jsx        — static, nested in WelcomePage / LoginPage / RegisterPage
+- Navbar.jsx        — authenticated nav, conditional admin vs customer links,
+                      onLogout callback
+- AccountCard.jsx   — account object prop, Deposit/Withdraw/Transactions buttons,
+                      onAction callback (child->parent)
+- TransactionCard.jsx — transaction object prop, one row display
+- Button.jsx        — label, onClick, variant, disabled props
+- Spinner.jsx       — shown during every async Axios call, optional message prop
+- ErrorMessage.jsx  — Bootstrap/Tailwind alert-danger block, message prop
+
+Props system demonstrated:
+  Parent -> Child: WelcomePage->Header (appName), CustomerDashboard->AccountCard (account)
+  Child -> Parent: Header->App (onLogout), AccountCard->CustomerDashboard (onAction)
+
+-----------------------------------------------------
+API SERVICE LAYER (6.6.x)
+-----------------------------------------------------
+All Axios calls centralized in src/services/api.js:
+  - Auth:        register, login
+  - Customers:   getAllCustomers, getCustomer, getCustomerByFirstName,
+                 updateCustomer, deleteCustomer, postCustomer
+  - Accounts:    createAccount, getAllAccounts, getAccount, getPremiumAccounts,
+                 updateAccount, deleteAccount, getAccountsByCustomer
+  - Financial:   deposit, withdraw, transfer
+  - Transactions: getTransactions
+  - Audit:       getAllAudit, getAuditByAccount, getAuditByCustomer
+
+Axios interceptor:
+  - Attaches Authorization: Bearer <token> to every request
+  - 401 -> clear localStorage + redirect to /login
+  - 403 -> return { error: 'Access denied' }
+  - Other errors -> return { error: detail }
+
+-----------------------------------------------------
+BOOTSTRAP STYLING (6.7.x)
+-----------------------------------------------------
+- Applied Bootstrap grid layout (container/row/col) to all pages
+- Styled all forms with form-control, form-label, btn classes
+- Styled all tables with table, table-striped, table-hover
+- Styled Navbar with Bootstrap navbar component
+- Verified responsiveness on desktop, tablet, mobile
+
+-----------------------------------------------------
+TAILWIND CSS TRANSITION (6.9.x)
+-----------------------------------------------------
+- Installed Tailwind CSS v3 + postcss + autoprefixer
+  (npx init broken on Windows — configs created manually)
+- Configured tailwind.config.js with content paths for all .jsx files
+- Replaced Bootstrap import with @tailwind directives in index.css
+- Uninstalled Bootstrap (npm uninstall bootstrap), removed Bootstrap CDN JS bundle from index.html
+- Swapped all Bootstrap class names to Tailwind utilities across:
+  Button, Navbar, Header, Footer, Spinner, ErrorMessage, AccountCard,
+  TransactionCard, and all 13 pages
+- Verified responsiveness on desktop, tablet, mobile
+
+-----------------------------------------------------
+ERROR HANDLING & FINAL CLEANUP (6.10.x)
+-----------------------------------------------------
+- Global Axios interceptor handles 401/403/other in api.js
+- Error messages wired on all forms:
+    Register (taken/reserved username), Login (invalid credentials),
+    Deposit/Withdraw/Transfer (invalid amount, insufficient funds)
+- Spinner + disabled submit buttons on all async calls
+- 404 catch-all route in App.jsx redirects to /welcome
+- All FastAPI endpoints raise HTTPException with { "detail": "..." }
+- Zero console.log statements across all frontend files
+- No unused imports across all files
+- All 13 routes in App.jsx verified against route map
+- Backend .gitignore: .env present
+- Frontend .gitignore: .env and .env.* added
+- Smoke tested all 13 frontend routes end to end
+
+-----------------------------------------------------
+FRONTEND ROUTE MAP
+-----------------------------------------------------
+/welcome                    WelcomePage           (public)
+/register                   RegisterPage          (public)
+/login                      LoginPage             (public)
+/dashboard                  CustomerDashboard     (customer only)
+/accounts/new               CreateAccountPage     (customer only)
+/accounts/:id/deposit       DepositPage           (customer only)
+/accounts/:id/withdraw      WithdrawPage          (customer only)
+/accounts/:id/transactions  TransactionHistoryPage(customer only)
+/admin/dashboard            AdminDashboard        (admin only)
+/admin/customers            CustomersPage         (admin only)
+/admin/accounts             AccountsPage          (admin only)
+/admin/audit                AuditPage             (admin only)
+/admin/users                UsersPage             (admin only)
+
+-----------------------------------------------------
+AUTH RULES IMPLEMENTED
+-----------------------------------------------------
+- Username "admin" reserved — cannot be registered by customers
+- Admin seeded directly in MongoDB (not via register endpoint)
+- Passwords stored as BCrypt hash only — never plain text
+- JWT contains: { username, role, customer_id }
+- AdminToken    -> grants /api/admin access
+- CustomerToken -> grants /api/customerDashboard/{id} only
+- localStorage stores: { token, role, customer_id, username }
+- ProtectedRoute checks localStorage on every protected page load
+- Logout clears localStorage and redirects to /welcome
+
+-----------------------------------------------------
+SCENARIO TESTS PASSED
+-----------------------------------------------------
+Registration / Login:
+- Register flow: customer created in MongoDB, bcrypt hash stored
+- "admin" username rejected at registration
+- Customer login: CustomerToken stored, /admin/dashboard returns 403,
+  /api/customerDashboard/{own_id} returns 200
+- Admin login: AdminToken stored, /admin/dashboard returns 200
+
+JWT Authorization:
+- Unauthenticated access to /admin/dashboard -> redirect to /login
+- /admin/dashboard with CustomerToken -> 403 Forbidden shown
+- /dashboard with AdminToken -> 403 Forbidden shown
+
+Customer CRUD Display:
+- CustomersPage shows >= 7 customers (list rendering demo)
+- GetCustomerById: click row -> shows customer detail
+- DeleteCustomer: delete button removes row from table
+- PostCustomer: admin creates new customer via form
+
+Search & Filter:
+- PremiumAccounts filter by threshold works
+- FindCustomerByFirstName search works
+
+Customer <-> Accounts:
+- CustomerDashboard shows all accounts for logged-in customer
+- Admin CustomersPage: "View Accounts" shows accounts for that customer
+
+Financial Flows:
+- Deposit, Withdraw, Transfer flows end to end
+- TransactionHistoryPage renders >= 7 rows
+
+Loading & Error States:
+- Spinner shown on every async call
+- ErrorMessage shown on API failure
+- ProtectedRoute blocks unauthenticated access
+- Logout clears localStorage and redirects to /welcome
+
+-----------------------------------------------------
+POST-PHASE 6 FIXES — Friendly Reference Numbers & Bug Fixes
+-----------------------------------------------------
+
+FRIENDLY REFERENCE NUMBERS
+- Replaced all raw MongoDB ObjectId hex strings in the UI with
+  human-readable reference numbers across the entire stack.
+- Four number types introduced:
+    CUST-XXXXXX  — customers
+    ACC-XXXXXX   — accounts
+    AUD-XXXXXX   — audit records
+    TXN-XXXXXX   — transactions (embedded in account documents)
+- Generation: random 6-digit suffix via _generate_*_number() helpers
+  added to each service (customer_service, account_service,
+  audit_service). Numbers stored on the document at creation time.
+- Fallback pattern used throughout frontend:
+    friendly_number || raw_id_slice
+  ensures UI never breaks for older records missing the new fields.
+- Migration scripts written and run for all existing data, then deleted:
+    migrate_reference_numbers.py       (customers + accounts)
+    migrate_audit_reference_numbers.py (audit records)
+    migrate_user_customer_numbers.py   (user_auth documents)
+    migrate_account_customer_numbers.py(account customer_number field)
+    migrate_audit_numbers.py           (AUD- numbers on audit records)
+    migrate_txn_numbers.py             (TXN- numbers on embedded txns)
+
+BACKEND CHANGES
+- customer_service.py: added _generate_customer_number(),
+  customer_number stored on customer document at creation.
+- account_service.py: added _generate_account_number() and
+  _generate_txn_number(). account_number, customer_number stored
+  on account document at creation. All four transaction writes
+  (deposit, withdraw, transfer out, transfer in) now use TXN-XXXXXX.
+  Removed unused ObjectId import.
+- audit_service.py: added _generate_audit_number(), audit_number
+  stored on audit record at creation. customer_number and
+  account_numbers stored for human-readable display.
+- audit_repository.py: added find_by_account_number() and
+  find_by_customer_number() methods.
+- audit_controller.py: route params renamed from account_id/customer_id
+  to account_number/customer_number.
+- auth_service.py: customer_number now stored on user_auth document
+  at registration time.
+
+FRONTEND CHANGES
+- AuditPage.jsx: column renamed "Audit No.", displays audit_number
+  with fallback to _id.slice(-8).
+- AccountsPage.jsx: columns renamed "Account No." / "Customer No.",
+  displays account_number and customer_number with fallbacks.
+- CustomersPage.jsx: ID column displays customer_number with fallback.
+- UsersPage.jsx: column renamed "Customer No.", displays
+  customer_number with fallback.
+- AccountCard.jsx: top-right corner shows account_number with fallback.
+- TransactionCard.jsx: displays TXN-XXXXXX as-is; falls back to
+  last 8 chars for old hex IDs.
+- Button.jsx: deleted — was never imported anywhere (dead code).
+- App.css: deleted — dead Vite scaffold file, never used.
+
+ACCESS DENIED BUG FIX — Transaction History / Deposit / Withdraw / Transfer
+- Root cause: DepositPage, WithdrawPage, TransferPage, and
+  TransactionHistoryPage were calling GET /api/accounts/{id} to
+  fetch account_number. That route is require_admin — customers
+  received 403 Access Denied.
+- Fix: account_number is now passed via React Router state from
+  CustomerDashboard when navigating to any action page.
+  No extra API call needed.
+- CustomerDashboard.jsx: handleAction now passes accountNumber as
+  third argument and includes it in navigate() state.
+- AccountCard.jsx: all four onAction calls pass account.account_number
+  as third argument.
+- DepositPage, WithdrawPage, TransferPage, TransactionHistoryPage:
+  all now use useLocation() to read state.accountNumber.
+  Fallback to accountId.slice(-6) if navigated to directly.
+  TransactionHistoryPage reverted to single transactions fetch
+  (removed the broken Promise.all that called the admin route).
+  TransactionHistoryPage CSV export filename uses accountNumber.
+- WithdrawPage: was missing useEffect import — caused blank page,
+  now fixed.
+
+=====================================================
+NEXT ACTION: None — Phase 6 complete + post-phase fixes applied
+=====================================================

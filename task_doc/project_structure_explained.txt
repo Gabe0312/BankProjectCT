@@ -1,0 +1,1549 @@
+=======================================================
+  PROJECT FOLDER STRUCTURE — EXPLAINED
+=======================================================
+
+This document explains what each folder in the project does
+and how they all connect to each other.
+
+=======================================================
+BACKEND (FastAPI + MongoDB Atlas)
+=======================================================
+
+THE FULL REQUEST FLOW
+---------------------
+Frontend
+   ↓  HTTP request (Axios)
+Controller   — receives the request, defines the route
+   ↓
+Service      — runs the business logic and rules
+   ↓
+Repository   — reads from / writes to MongoDB Atlas
+   ↓
+MongoDB Atlas
+
+-------------------------------------------------------
+app/controllers/
+-------------------------------------------------------
+Defines all the API routes (endpoints) that the frontend
+calls. Each route receives an HTTP request, calls the
+appropriate service to do the work, and sends the response
+back to the frontend.
+
+Controllers do NOT talk to the database directly — that is
+the repository's job. They also do NOT contain business
+logic — that is the service's job.
+
+Each controller file initializes an APIRouter and registers
+routes using decorators like @router.post() or @router.get().
+
+Example:
+  POST /api/accounts  ->  calls account_service.create_account()
+                      ->  returns the new account to the frontend
+
+Files:
+  account_controller.py   — 11 account + transaction routes
+  customer_controller.py  — 5 customer CRUD routes
+  audit_controller.py     — 3 audit query routes
+  auth_controller.py      — register, login, list users routes
+
+-------------------------------------------------------
+account_controller.py — Route by Route
+-------------------------------------------------------
+POST   /accounts
+  Creates a new bank account for the logged-in customer.
+  Accessible by: customer only.
+
+GET    /accounts
+  Returns all accounts in the system.
+  Accessible by: admin only.
+
+GET    /accounts/premium?threshold=X
+  Returns all accounts with a balance >= the given threshold.
+  Used by admin to filter high-balance (premium) accounts.
+  NOTE: defined before /accounts/{account_id} in the file so
+  FastAPI does not mistake the word "premium" for an account ID.
+  Accessible by: admin only.
+
+POST   /accounts/transfer
+  Transfers funds from one account to another.
+  NOTE: defined before /accounts/{account_id} for the same
+  reason as premium — "transfer" must not be matched as an ID.
+  Accessible by: customer only.
+
+GET    /accounts/{account_id}
+  Returns a single account by its ID.
+  Accessible by: admin only.
+
+PUT    /accounts/{account_id}
+  Updates fields on an existing account (e.g. account type).
+  Accessible by: admin only.
+
+DELETE /accounts/{account_id}
+  Deletes an account by its ID.
+  Accessible by: admin only.
+
+POST   /accounts/{account_id}/deposit
+  Deposits money into the account matching the given ID.
+  Accessible by: customer only (their own account).
+
+POST   /accounts/{account_id}/withdraw
+  Withdraws money from the account matching the given ID.
+  Returns an error if balance is insufficient.
+  Accessible by: customer only (their own account).
+
+GET    /customers/{customer_id}/accounts
+  Returns all accounts belonging to a specific customer.
+  Accessible by: admin OR the customer themselves.
+
+PATCH  /accounts/{account_id}/nickname
+  Updates the nickname label on an account.
+  The customer can name their account (e.g. "Vacation Fund").
+  Returns 403 if the customer tries to rename someone else's account.
+  Accessible by: customer only (their own account).
+
+GET    /accounts/{account_id}/transactions
+  Returns the full transaction history for an account.
+  Accessible by: customer only (their own account).
+
+-------------------------------------------------------
+audit_controller.py — Route by Route
+-------------------------------------------------------
+All audit routes are admin only — customers cannot access them.
+Audit records log every financial operation in the system
+for compliance and fraud review.
+
+GET    /audit
+  Returns all audit records across every account and customer
+  in the system.
+
+GET    /audit/account/{account_id}
+  Returns all audit records for a specific account ID.
+  Used by admin to review the activity on one particular account.
+
+GET    /audit/customer/{customer_id}
+  Returns all audit records tied to a specific customer ID.
+  Used by admin to review all financial activity for one customer
+  across all of their accounts.
+
+-------------------------------------------------------
+auth_controller.py — Route by Route
+-------------------------------------------------------
+Manages user authentication — registration, login, and user listing.
+The storage of credentials happens in the repository layer.
+
+POST   /auth/register   (public — no token required)
+  Registers a new user. Calls auth_service which:
+    1. Rejects the reserved username "admin"
+    2. Rejects duplicate usernames
+    3. Creates a customer document via customer_service
+    4. Creates a user_auth document with the linked customer_id
+       and the bcrypt-hashed password
+
+POST   /auth/login   (public — no token required)
+  Verifies the submitted credentials against the stored bcrypt hash.
+  On success, returns a signed JWT token scoped to the user's role:
+    AdminToken    — issued when role is "admin"
+    CustomerToken — issued when role is "customer"
+  The token type is determined by the role stored in the database,
+  not by who is registering — any valid user gets a token on login.
+
+GET    /auth/users   (admin only — AdminToken required)
+  Returns all registered users in the system.
+  Password hashes are stripped in the repository layer before
+  the data is returned — hashes are never exposed via the API.
+
+-------------------------------------------------------
+customer_controller.py — Route by Route
+-------------------------------------------------------
+All routes are admin only — customers cannot access these directly.
+Each route passes its parameters to the customer service layer
+which handles the business logic before calling the repository.
+
+GET    /customers
+  Returns all customers in the system.
+
+POST   /customers
+  Creates a new customer document in MongoDB.
+  Accepts: name, email, phone in the request body.
+
+GET    /customers/{customer_id}
+  Returns a single customer by their ID.
+
+PUT    /customers/{customer_id}
+  Updates an existing customer.
+  Only the fields provided in the request body are updated —
+  any fields not included remain unchanged in the database.
+
+DELETE /customers/{customer_id}
+  Deletes a customer from the system by their ID.
+
+-------------------------------------------------------
+app/models/
+-------------------------------------------------------
+Defines the shape and structure of the data using Pydantic.
+Models describe what fields an object has and what types
+those fields must be. FastAPI uses these to automatically
+validate incoming request data and reject bad input.
+
+Models are NOT stored directly in MongoDB — they define
+the shape of data as it moves through the app (requests
+coming in, responses going out). The repository layer
+stores raw dictionaries into MongoDB, not model objects.
+
+There are two types of models in each file:
+  1. Core document models — represent the full document
+     shape (e.g. Account, Customer, AuditRecord)
+  2. Request models — validate what the frontend sends in
+     for each operation (e.g. CreateAccountRequest,
+     AmountRequest, TransferRequest, LoginRequest)
+
+Enums are also defined in the models to restrict fields
+to only allowed values:
+  AccountType         — SAVINGS or CHECKING only
+  TransactionType     — DEPOSIT or WITHDRAWAL only
+  AuditTransactionType — DEPOSIT, WITHDRAWAL, or TRANSFER
+
+Files:
+  account.py    — Account, CreateAccountRequest, AmountRequest,
+                  TransferRequest, UpdateAccountRequest,
+                  NicknameRequest, AccountType enum, PyObjectId
+  customer.py   — Customer, CreateCustomerRequest, UpdateCustomerRequest
+  transaction.py — Transaction, TransactionType enum
+  audit.py      — AuditRecord, CreateAuditRequest, AuditTransactionType enum
+  user_auth.py  — UserAuth, RegisterRequest, LoginRequest, LoginResponse
+
+-------------------------------------------------------
+account.py — Explained
+-------------------------------------------------------
+PyObjectId
+  MongoDB stores document IDs as ObjectId (a binary BSON type).
+  PyObjectId converts that ObjectId into a plain string so it
+  can be included in JSON responses sent to the frontend.
+  Without this, MongoDB ObjectIds cannot be serialized to JSON.
+
+AccountType (Enum)
+  Restricts account_type to SAVINGS or CHECKING only.
+  Pydantic rejects any other value automatically.
+
+CreateAccountRequest
+  Validates the request body when a customer creates a new account.
+  Fields: customerId (str), accountType (AccountType), nickname (optional str)
+
+AmountRequest
+  Validates the request body for deposit and withdrawal operations.
+  Field: amount (float)
+
+TransferRequest
+  Validates the request body for a transfer between two accounts.
+  Fields: from_account_id, to_account_id, amount
+
+UpdateAccountRequest
+  Validates the request body when an admin updates an account.
+  All fields are optional — only provided fields are updated.
+
+NicknameRequest
+  Validates the request body when a customer renames their account.
+  Field: nickname (optional str)
+
+Account (core document model)
+  Represents the full account document shape.
+  Fields: account_id, customer_id, balance, account_type,
+          created_at, transactions (embedded list of Transaction)
+  Transactions are embedded directly inside the account document
+  rather than stored in a separate collection.
+
+-------------------------------------------------------
+audit.py — Explained
+-------------------------------------------------------
+AuditTransactionType (Enum)
+  Restricts transaction_type to DEPOSIT, WITHDRAWAL, or TRANSFER.
+
+AuditRecord (core document model)
+  Represents one audit log entry. Every deposit, withdrawal,
+  and transfer writes one record to the audit collection.
+  Fields: audit_id, transaction_type, customer_id,
+          accounts_involved (list — one for deposit/withdraw,
+          two for transfer), amount, timestamp, note (optional)
+
+CreateAuditRequest
+  Used internally by the service layer to log an audit record.
+  Not called directly by the frontend.
+
+-------------------------------------------------------
+customer.py — Explained
+-------------------------------------------------------
+Customer (core document model)
+  Represents the full customer document shape.
+  Fields: customer_id, name, email (validated as EmailStr),
+          phone, created_at
+
+CreateCustomerRequest
+  Validates the request body when creating a new customer.
+  Fields: name, email, phone
+
+UpdateCustomerRequest
+  All fields are optional — only provided fields are updated.
+  Fields: name (optional), email (optional), phone (optional)
+
+-------------------------------------------------------
+transaction.py — Explained
+-------------------------------------------------------
+TransactionType (Enum)
+  Restricts txn_type to DEPOSIT or WITHDRAWAL only.
+  Transfers are logged in the audit collection, not here.
+
+Transaction (core document model)
+  Represents one transaction embedded inside an account document.
+  Fields: txn_id (str), txn_type (TransactionType), amount, created_at
+
+-------------------------------------------------------
+user_auth.py — Explained
+-------------------------------------------------------
+UserAuth (core document model)
+  Links an auth identity to a customer document.
+  Fields: username (unique, "admin" reserved), password_hash
+          (bcrypt only — plain text never stored), role
+          ("admin" or "customer"), customer_id (null for admin),
+          created_at
+
+RegisterRequest
+  Validates the registration form submitted by the frontend.
+  Fields: username, password, name, email, phone
+  auth_service uses this to create both a customer document
+  and a user_auth document as two separate operations.
+
+LoginRequest
+  Validates the login form. Fields: username, password
+
+LoginResponse
+  The response returned after a successful login.
+  Fields: access_token (JWT), role, customer_id (null for admin)
+  Frontend stores all three in localStorage.
+
+-------------------------------------------------------
+app/services/
+-------------------------------------------------------
+Contains all the business logic and rules for the application.
+Controllers receive the HTTP request and immediately delegate
+to the service layer — the service decides what rules to
+enforce and what operations to perform.
+
+Services do NOT talk to the database directly. They call
+the repository layer to read or store data.
+
+Each service function is called by a corresponding route
+in the controllers folder. The link is one-directional —
+the controller calls the service, the service has no
+knowledge of the controller.
+
+Files:
+  account_service.py   — deposit, withdraw, transfer, balance rules,
+                          self-scoping checks
+  customer_service.py  — create, get, update, delete customer
+  audit_service.py     — log financial operations, query audit records
+  auth_service.py      — register, login, bcrypt hashing, JWT generation,
+                          password hash stripping
+  jwt_service.py       — create_access_token, decode_token
+
+-------------------------------------------------------
+account_service.py — Key Methods Explained
+-------------------------------------------------------
+create_account(customer_id, account_type, current_user, nickname)
+  Performs a self-scoping check: compares the customer_id from
+  the JWT token payload against the customer_id in the request.
+  If they don't match, raises 403 Forbidden — a customer cannot
+  create an account for someone else.
+  Builds the account dictionary with all required fields
+  (customer_id, account_type, nickname, balance: 0.0,
+  created_at, transactions: []) and passes it to the repository
+  to insert into MongoDB.
+
+deposit(account_id, amount, current_user)
+  Enforces rules:
+    - Amount must be positive (400 if not)
+    - Self-scoping: token customer_id must match account owner (403 if not)
+  Adds amount to balance, saves updated account via repository,
+  appends a DEPOSIT transaction to the embedded transactions array,
+  and writes an audit record.
+
+withdraw(account_id, amount, current_user)
+  Same rules as deposit plus:
+    - Balance cannot go negative (400 Insufficient funds if amount > balance)
+  Deducts amount, saves, appends WITHDRAWAL transaction, writes audit record.
+
+transfer(from_account_id, to_account_id, amount, current_user)
+  Fetches both accounts (404 if either not found).
+  Self-scoping check on the from_account only.
+  Order of operations: debit from_account -> credit to_account
+  -> write a single audit record listing both accounts involved.
+
+update_account(account_id, fields)
+  Strips None values from the fields dict so only provided
+  fields are updated. Delegates $set operation to repository.
+
+-------------------------------------------------------
+auth_service.py — Key Methods Explained
+-------------------------------------------------------
+register(username, password, name, email, phone)
+  1. Rejects reserved username "admin" (case-insensitive)
+  2. Rejects duplicate usernames
+  3. Creates a customer document via customer_service
+  4. Hashes the password with BCrypt (plain text never stored)
+  5. Saves the user_auth document with the linked customer_id
+
+login(username, password)
+  Finds user by username. Verifies the submitted password
+  against the stored BCrypt hash using pwd_context.verify().
+  Uses a generic "Invalid credentials" message for both wrong
+  username and wrong password — avoids leaking whether the
+  username exists. On success, builds JWT payload containing
+  { username, role, customer_id } and returns the signed token.
+
+get_all_users()
+  Fetches all users from the repository then strips
+  password_hash from every document before returning.
+  Password hashes are never exposed outside the auth layer.
+
+-------------------------------------------------------
+jwt_service.py — Key Methods Explained
+-------------------------------------------------------
+create_access_token(data)
+  Copies the payload dict, embeds an expiration time of 8 hours,
+  and signs it using HS256 algorithm with the JWT_SECRET_KEY
+  loaded from the .env file. Returns the signed token string.
+
+decode_token(token)
+  Verifies the token signature and expiry using the same
+  SECRET_KEY. Returns the payload dict on success.
+  Raises 401 if the token is invalid, tampered with, or expired.
+
+-------------------------------------------------------
+app/repositories/
+-------------------------------------------------------
+The ONLY layer that communicates directly with MongoDB Atlas.
+Repositories receive plain dictionaries from the service layer
+and handle all database read and write operations: find, insert,
+update, delete. They use Motor (async MongoDB driver) to make
+non-blocking database calls.
+
+Repositories do NOT use Pydantic models directly — they work
+with raw Python dictionaries. Models are used at the controller
+layer for validation before data ever reaches the repository.
+
+A key responsibility of every repository method is the
+ObjectId conversion:
+  - MongoDB stores document IDs as ObjectId (binary BSON type)
+  - All IDs arrive as plain strings from the service layer
+  - The repository explicitly converts them: ObjectId(account_id)
+  - After fetching, _id is converted back to string for the response
+  This is explicit conversion — the code calls ObjectId() directly.
+
+Files:
+  account_repository.py      — save, find_by_id, find_all,
+                                find_by_customer_id, find_premium,
+                                delete_by_id, update
+  customer_repository.py     — save, find_by_id, find_all,
+                                update, delete_by_id
+  audit_repository.py        — save, find_all, find_by_account_id,
+                                find_by_customer_id
+  user_auth_repository.py    — save, find_by_username, find_all
+  transaction_repository.py  — append, find_by_account_id
+
+-------------------------------------------------------
+account_repository.py — Key Methods Explained
+-------------------------------------------------------
+save(account)
+  Checks whether the account dictionary already has an _id key.
+  - If _id exists: the account already exists in MongoDB.
+    A dictionary comprehension loops through every key-value
+    pair in the account dictionary and builds a new dictionary
+    that includes everything except _id:
+      doc = {k: v for k, v in account.items() if k != "_id"}
+    This is required because MongoDB's _id is immutable —
+    including it in a replacement document throws a WriteError.
+    replace_one then finds the document by ObjectId and replaces
+    its contents with the stripped doc.
+  - If no _id: this is a new account. MongoDB generates the _id
+    automatically on insert_one. The generated _id is stored
+    back into the dictionary as a string and returned to the caller.
+
+find_by_id(account_id)
+  Converts the string account_id to ObjectId explicitly before
+  querying MongoDB. Converts _id back to string on the way out.
+
+find_all()
+  Creates an empty list. Loops through every document in the
+  accounts collection using async for (Motor async cursor).
+  For each document, explicitly converts _id from MongoDB's
+  ObjectId binary type to a plain string using str(account["_id"])
+  so it can be serialized to JSON for the frontend. Appends
+  each document to the list and returns it.
+  This exact same pattern repeats in customer_repository,
+  audit_repository, and user_auth_repository for their
+  own find_all methods.
+
+find_by_customer_id(customer_id)
+  Queries accounts where customer_id matches. Returns all
+  accounts belonging to that customer.
+
+find_premium(threshold)
+  Uses the MongoDB $gte operator to return only accounts
+  whose balance is greater than or equal to the threshold.
+  Example: { "balance": { "$gte": 1000 } }
+
+delete_by_id(account_id)
+  Calls delete_one with the ObjectId. Returns True if a
+  document was deleted, False if the account was not found.
+
+update(account_id, fields)
+  Uses the MongoDB $set operator to update only the fields
+  provided — all other fields in the document stay unchanged.
+  Returns the updated document by calling find_by_id after.
+
+-------------------------------------------------------
+transaction_repository.py — Key Methods Explained
+-------------------------------------------------------
+Transactions are embedded inside the account document —
+they are NOT stored in a separate collection.
+
+append(account_id, txn)
+  Uses the MongoDB $push operator to add a new transaction
+  dictionary into the embedded transactions array inside
+  the account document.
+
+find_by_account_id(account_id)
+  Fetches only the transactions field from the account document
+  using a MongoDB projection: { "transactions": 1 }.
+  Returns the embedded list, or an empty list if none exist.
+
+-------------------------------------------------------
+user_auth_repository.py — Key Methods Explained
+-------------------------------------------------------
+find_by_username(username)
+  Queries by username string directly — no ObjectId conversion
+  needed since username is a plain string field, not an _id.
+  Used during login to retrieve the stored bcrypt hash.
+
+find_all()
+  Returns all user documents. Password hash stripping is handled
+  in the service layer — the repository returns the full document
+  and the service removes the password_hash before responding.
+
+-------------------------------------------------------
+app/database/
+-------------------------------------------------------
+Manages the MongoDB Atlas connection using Motor
+(async MongoDB driver). Sets up the connection on app
+startup and closes it on shutdown using FastAPI's
+lifespan context manager. Exposes get_database() which
+repositories call to get the active database instance.
+
+Files:
+  db.py  — Motor client, lifespan, get_database()
+
+-------------------------------------------------------
+db.py — Explained
+-------------------------------------------------------
+Imports:
+  - MONGODB_URL and DATABASE_NAME from config.py (.env)
+  - AsyncIOMotorClient from Motor (async MongoDB driver)
+
+Why Motor instead of PyMongo:
+  Motor works asynchronously alongside FastAPI. PyMongo is
+  synchronous and would block FastAPI's event loop on every
+  database call, killing the performance benefit of async.
+
+Why FastAPI:
+  FastAPI uses Pydantic for automatic model validation.
+  Pydantic checks every incoming request against the model
+  definitions before the data ever reaches the service or
+  database layer — invalid data is rejected immediately.
+
+Lifespan:
+  db.py uses FastAPI's lifespan context manager to manage
+  the database connection lifecycle:
+    - On app startup  -> opens the Motor client connection
+    - On app shutdown -> closes the connection cleanly
+  This replaces the older deprecated @app.on_event approach.
+
+get_database():
+  Returns the active database instance to any repository
+  that calls it. Repositories use this to access MongoDB
+  collections (e.g. db.accounts, db.customers).
+
+-------------------------------------------------------
+app/dependencies/
+-------------------------------------------------------
+Contains FastAPI dependency functions used to protect routes
+with JWT authentication. These are injected into route
+handlers to enforce who can access what.
+
+Functions:
+  get_current_user()          — reads Bearer token from
+                                Authorization header, decodes
+                                JWT, returns user payload
+  require_admin()             — calls get_current_user(),
+                                raises 403 if role != "admin"
+  require_customer_self(id)   — raises 403 if token's
+                                customer_id != path customer_id
+
+-------------------------------------------------------
+jwt_dependencies.py — Explained
+-------------------------------------------------------
+HTTPBearer (from fastapi.security)
+  A FastAPI security utility that automatically extracts the
+  Bearer token string from the Authorization header on every
+  incoming request. It does not validate the token — it only
+  pulls the token string out so get_current_user can pass it
+  to jwt_service for decoding and verification.
+
+get_current_user()
+  The base dependency used by all protected routes.
+  Passes the extracted token to jwt_service.decode_token()
+  which decodes it and returns the payload dict containing
+  { username, role, customer_id }.
+  Raises 401 if the token is invalid or expired.
+
+require_admin()
+  Calls get_current_user() to get the decoded payload.
+  Checks that the role in the payload is "admin".
+  Raises 403 Forbidden if the role is anything other than "admin".
+  Used on all admin-only routes.
+
+require_customer()
+  Calls get_current_user() to get the decoded payload.
+  Checks that the role in the payload is "customer".
+  Raises 403 Forbidden if the role is anything other than "customer".
+  NOTE: this only checks the role — it does NOT check whether
+  the customer is accessing their own data. That self-scoping
+  check is handled in the service layer where it has access
+  to the actual account data.
+
+-------------------------------------------------------
+config.py
+-------------------------------------------------------
+Loads environment variables from the .env file using
+python-dotenv. Exposes MONGODB_URL and DATABASE_NAME
+to the rest of the app. Keeps secrets out of source code.
+
+-------------------------------------------------------
+.env  (never committed to GitHub)
+-------------------------------------------------------
+Stores sensitive configuration values:
+  MONGODB_URL      — MongoDB Atlas connection string
+  DATABASE_NAME    — bank_db
+  JWT_SECRET_KEY   — secret used to sign and verify JWT tokens
+
+Protected by backend/.gitignore — never pushed to GitHub.
+
+-------------------------------------------------------
+main.py — Explained
+-------------------------------------------------------
+The FastAPI entry point. Creates the app instance, sets up
+CORS, registers all routers, and defines the root health check.
+
+CORS (Cross-Origin Resource Sharing)
+  app.add_middleware(CORSMiddleware) configures CORS.
+  CORS is a browser security rule that blocks a frontend on
+  one port from calling a backend on a different port.
+  Without this, every Axios call from the React frontend
+  would be blocked by the browser.
+  The middleware explicitly allows requests from:
+    http://localhost:5173  and  http://127.0.0.1:5173
+  which is where the Vite frontend runs during development.
+  allow_methods=["*"] and allow_headers=["*"] permit all
+  HTTP methods and headers including the Authorization header
+  needed for JWT tokens.
+
+Router Registration (app.include_router)
+  Each controller's router is registered here:
+    auth_controller    — no prefix, mounts at /auth/...
+    account_controller — prefix /api, mounts at /api/accounts/...
+    customer_controller — prefix /api, mounts at /api/customers/...
+    audit_controller   — prefix /api, mounts at /api/audit/...
+
+Lifespan
+  The lifespan context manager from db.py is passed into the
+  FastAPI app instance. This is what triggers the MongoDB
+  connection to open on startup and close on shutdown.
+
+Root Health Check
+  GET / returns { "message": "Banking System API is running" }
+  A simple check to confirm the API is operational.
+
+=======================================================
+FRONTEND (React + Vite + Tailwind CSS)
+=======================================================
+
+-------------------------------------------------------
+src/pages/
+-------------------------------------------------------
+Each file is a full page that the user navigates to.
+Pages follow a consistent pattern:
+  1. PAGE_SIZE constant (where pagination is used)
+  2. Import components and api.js service
+  3. Read localStorage (username, customer_id, role)
+  4. Declare state fields with useState
+  5. useEffect hooks to fetch data on mount
+  6. Handler functions (submit, filter, delete, logout)
+  7. JSX layout returned at the bottom
+
+All pages use Tailwind CSS utility classes for styling.
+No separate CSS files per page.
+
+-------------------------------------------------------
+WelcomePage.jsx — Public Landing Page
+-------------------------------------------------------
+Route: /welcome  (public — no auth required)
+Imports: Header, Footer
+
+No state, no useEffect, no API calls.
+A static features array is defined at the top of the file
+(outside the component) — each item has an icon, title,
+and description. The array is mapped in JSX to render
+the three feature cards.
+
+Layout:
+  Header (nested — receives appName="BankApp" prop)
+  Hero section with gradient background, animated orbs,
+  headline, and Sign In / Create Account buttons
+  Features grid (3 cards mapped from the features array)
+  Footer (nested — no props)
+
+Demonstrates: component nesting (Header + Footer inside page),
+parent->child props (appName passed down to Header).
+
+-------------------------------------------------------
+RegisterPage.jsx — New User Registration
+-------------------------------------------------------
+Route: /register  (public)
+Imports: api, Footer, Spinner, ErrorMessage
+
+A fieldDefs array is defined outside the component —
+each entry has name, label, type, and placeholder.
+The form maps over fieldDefs to render all 5 fields
+(username, password, name, email, phone) without
+repeating the same JSX block five times.
+
+A validate() function is also defined outside the component.
+It checks all fields and returns an errors object.
+Validation rules include: username min length, no spaces,
+"admin" reserved check, password min length, email format,
+phone digits-only check.
+
+State: form (object), loading, error (API error), errors (field errors)
+
+On submit:
+  1. Runs validate() — sets field errors and returns early if invalid
+  2. Calls POST /auth/register
+  3. On success: navigates to /login
+  4. On error: sets error message (e.g. username taken)
+
+-------------------------------------------------------
+LoginPage.jsx — Sign In
+-------------------------------------------------------
+Route: /login  (public)
+Imports: api, Footer, Spinner, ErrorMessage
+
+State: form (username + password), loading, error, errors (field errors)
+
+On submit:
+  1. Validates that both fields are filled
+  2. Calls POST /auth/login
+  3. On success: stores token, role, customer_id, username
+     in localStorage, then navigates:
+       role === "admin"    -> /admin/dashboard
+       role === "customer" -> /dashboard
+  4. On error: shows "Invalid credentials" message
+
+Note: the reserved "admin" username check is NOT done here —
+it is enforced on the backend. LoginPage only handles
+credential validation.
+
+-------------------------------------------------------
+CustomerDashboard.jsx — Customer Home
+-------------------------------------------------------
+Route: /dashboard  (customer only)
+Imports: api, Navbar, AccountCard, Spinner, ErrorMessage
+
+Reads customer_id and username from localStorage on mount.
+
+State: accounts (array), loading, error
+
+useEffect:
+  Calls GET /api/customers/{customer_id}/accounts on mount.
+  Sets accounts state with the result.
+
+Handlers:
+  handleAction(accountId, actionType)
+    Receives the child->parent callback from AccountCard.
+    Routes to the correct page based on actionType:
+      deposit      -> /accounts/{id}/deposit
+      withdraw     -> /accounts/{id}/withdraw
+      transactions -> /accounts/{id}/transactions
+      transfer     -> /accounts/{id}/transfer
+
+  handleNicknameUpdate(accountId, newNickname)
+    Receives the child->parent callback from AccountCard
+    after a nickname is saved. Updates the accounts array
+    in state without a full page reload.
+
+Layout:
+  Navbar (with username, role="customer", onLogout)
+  Total balance banner (sum of all account balances)
+  AccountCard grid — one card per account
+  "+ New Account" button -> /accounts/new
+
+Demonstrates: parent->child props (account object to AccountCard),
+child->parent callbacks (onAction, onNicknameUpdate from AccountCard).
+
+-------------------------------------------------------
+CreateAccountPage.jsx — Open New Account
+-------------------------------------------------------
+Route: /accounts/new  (customer only)
+Imports: api, Navbar, Spinner, ErrorMessage
+
+An accountTypes array is defined outside the component —
+each entry has value, label, icon, and desc. Mapped in JSX
+to render the SAVINGS / CHECKING selector cards.
+
+Reads customer_id and username from localStorage.
+
+State: accountType (default "SAVINGS"), nickname, loading,
+       error, nicknameError
+
+On submit:
+  Validates nickname length (<= 30 chars).
+  Calls POST /api/accounts with { customerId, accountType, nickname }.
+  On success: navigates to /dashboard.
+
+-------------------------------------------------------
+DepositPage.jsx — Deposit Funds
+-------------------------------------------------------
+Route: /accounts/:id/deposit  (customer only)
+Imports: api, Navbar, Spinner, ErrorMessage
+
+Reads accountId from useParams() and username from localStorage.
+
+State: amount, loading, error, updatedBalance (null until success),
+       fieldError
+
+On submit:
+  Validates amount > 0.
+  Calls POST /api/accounts/{accountId}/deposit with { amount }.
+  On success: sets updatedBalance to show the new balance inline.
+  Does NOT navigate away — the user sees the success message
+  and can deposit again or click Back.
+
+-------------------------------------------------------
+WithdrawPage.jsx — Withdraw Funds
+-------------------------------------------------------
+Route: /accounts/:id/withdraw  (customer only)
+Imports: api, Navbar, Spinner, ErrorMessage
+
+Identical structure to DepositPage.
+Reads accountId from useParams().
+
+State: amount, loading, error, updatedBalance, fieldError
+
+On submit:
+  Calls POST /api/accounts/{accountId}/withdraw.
+  On success: shows updated balance inline.
+  On error: shows "Insufficient funds" or other backend message.
+
+-------------------------------------------------------
+TransferPage.jsx — Transfer Between Accounts
+-------------------------------------------------------
+Route: /accounts/:id/transfer  (customer only)
+Imports: api, Navbar, Spinner, ErrorMessage
+
+Reads fromAccountId from useParams() and customerId from localStorage.
+
+State: accounts (other accounts to transfer to), toAccountId,
+       amount, loading, error, result, errors (field errors)
+
+useEffect:
+  Calls GET /api/customers/{customerId}/accounts on mount.
+  Filters out the fromAccountId so the customer cannot
+  transfer to the same account they are transferring from.
+  Populates the destination account dropdown.
+
+On submit:
+  Validates toAccountId selected and amount > 0.
+  Calls POST /api/accounts/transfer with
+    { from_account_id, to_account_id, amount }.
+  On success: shows new balance of the from_account inline.
+
+-------------------------------------------------------
+TransactionHistoryPage.jsx — Transaction History
+-------------------------------------------------------
+Route: /accounts/:id/transactions  (customer only)
+Imports: api, Navbar, TransactionCard, Spinner, ErrorMessage, Pagination
+
+PAGE_SIZE = 10  (defined at the top of the file)
+
+Reads accountId from useParams() and username from localStorage.
+
+State: transactions (full list), loading, error,
+       fromDate, toDate (date range filter inputs),
+       currentPage
+
+useEffect (fetch):
+  Calls GET /api/accounts/{accountId}/transactions on mount.
+  Sets the full transactions array in state.
+
+useEffect (reset page):
+  Resets currentPage to 1 whenever fromDate or toDate changes.
+  This prevents the user from being stuck on page 3 after
+  applying a filter that returns fewer results.
+
+filtered (useMemo):
+  Derived from transactions + fromDate + toDate.
+  useMemo recalculates only when those three values change.
+  Filters out transactions outside the selected date range.
+
+paginated:
+  Slices filtered using currentPage and PAGE_SIZE.
+  Only the current page's rows are rendered in the table.
+
+totalPages:
+  Math.ceil(filtered.length / PAGE_SIZE)
+
+handleExportCSV:
+  Builds a CSV string from the filtered (not paginated) list.
+  Creates a Blob, generates a temporary download URL,
+  programmatically clicks an <a> tag to trigger the download,
+  then revokes the URL to free memory.
+  File is named: statement-{last 6 chars of accountId}.csv
+
+Layout:
+  Date range filter inputs (From / To) + Clear button
+  Export CSV button (disabled if filtered list is empty)
+  Transaction count label (shows "filtered" tag if active)
+  Table of TransactionCard rows (paginated)
+  Pagination component at the bottom
+
+-------------------------------------------------------
+AdminDashboard.jsx — Admin Overview
+-------------------------------------------------------
+Route: /admin/dashboard  (admin only)
+Imports: api, Navbar, Spinner
+
+An adminLinks array is defined outside the component —
+each entry has icon, label, path, and desc. Mapped in JSX
+to render the four Quick Access cards.
+
+Reads username from localStorage.
+
+State: stats (null until loaded), statsLoading
+
+useEffect:
+  Calls GET /api/customers and GET /api/accounts in parallel
+  using Promise.all. Calculates total balance by summing
+  all account balances. Sets stats with customer count,
+  account count, and total balance.
+  Stats failure is silent — non-critical display data.
+
+Layout:
+  Navbar (role="admin")
+  Admin banner with username
+  System Overview stat cards (customers, accounts, total balance)
+  Quick Access grid (4 cards linking to admin sub-pages)
+
+-------------------------------------------------------
+CustomersPage.jsx — Customer Management (Admin)
+-------------------------------------------------------
+Route: /admin/customers  (admin only)
+Imports: api, Navbar, Spinner, ErrorMessage, ConfirmDialog
+
+State: customers (full list), filtered (search result),
+       search, loading, error,
+       addMode ("quick" or "login"),
+       newCustomer (form fields object),
+       createError, creating,
+       editingId, editFields, saving,
+       confirmId (ID of customer pending delete confirmation)
+
+useEffect:
+  Calls GET /api/customers on mount. Sets both customers
+  and filtered to the full list.
+
+handleSearch:
+  Filters the customers array by name starting with the
+  search input value. Updates filtered state live as the
+  user types — no API call needed.
+
+handleCreate:
+  Two modes controlled by addMode:
+    "quick"  -> POST /api/customers (data record only, no login)
+    "login"  -> POST /auth/register (creates customer + login account)
+  After creation, refreshes the list.
+
+handleEdit / handleUpdate:
+  Clicking Edit on a row sets editingId and editFields.
+  The row switches to inline input fields.
+  Save calls PUT /api/customers/{id} with editFields.
+  Updates the row in state without a full reload.
+
+handleDelete:
+  Triggered after ConfirmDialog confirms.
+  Calls DELETE /api/customers/{confirmId}.
+  Removes the customer from both customers and filtered state.
+
+Layout:
+  ConfirmDialog (rendered only when confirmId is set)
+  Add Customer card with Quick Add / Add with Login toggle
+  Search input (filters by first name)
+  Customer table with inline edit, Accounts button, Delete button
+
+-------------------------------------------------------
+AccountsPage.jsx — Account Management (Admin)
+-------------------------------------------------------
+Route: /admin/accounts  (admin only)
+Imports: api, Navbar, Spinner, ErrorMessage, ConfirmDialog
+Also imports: useLocation (from react-router-dom)
+
+Reads customerId from the URL query string using
+useLocation + URLSearchParams. This allows CustomersPage
+to link directly to accounts filtered for one customer:
+  /admin/accounts?customerId=<id>
+
+State: accounts, loading, error, threshold (premium filter input),
+       filtering, confirmId
+
+useEffect:
+  Calls fetchAllAccounts on mount and whenever customerIdFilter changes.
+  If customerId is in the URL: calls GET /api/customers/{id}/accounts
+  Otherwise: calls GET /api/accounts (all accounts)
+
+handlePremiumFilter:
+  Calls GET /api/accounts/premium?threshold={threshold}.
+  Replaces the accounts list with only premium accounts.
+
+handleReset:
+  Clears threshold and calls fetchAllAccounts to restore the full list.
+
+handleDelete:
+  Calls DELETE /api/accounts/{confirmId}.
+  Removes the account from state.
+
+Layout:
+  Premium filter input + Premium button + Reset button
+  Accounts table with account_id, customer_id, type, balance,
+  created_at, and Delete button per row
+
+-------------------------------------------------------
+AuditPage.jsx — Audit Log (Admin)
+-------------------------------------------------------
+Route: /admin/audit  (admin only)
+Imports: api, Navbar, Spinner, ErrorMessage, Pagination
+
+PAGE_SIZE = 10
+
+A typeBadge helper function is defined outside the component.
+It returns the correct Tailwind color classes based on
+transaction_type (DEPOSIT = indigo, WITHDRAWAL = slate,
+other = indigo-50).
+
+State: records (full list), loading, error,
+       filterValue (ID input), filterType ("account" or "customer"),
+       currentPage
+
+useEffect:
+  Calls fetchAll on mount -> GET /api/audit.
+
+handleFilter:
+  Reads filterType to decide which endpoint to call:
+    "account"  -> GET /api/audit/account/{filterValue}
+    "customer" -> GET /api/audit/customer/{filterValue}
+  Replaces records with the filtered result.
+  Resets currentPage to 1.
+
+handleReset:
+  Clears filterValue and calls fetchAll to restore all records.
+
+paginated / totalPages:
+  Same slice pattern as TransactionHistoryPage.
+
+Layout:
+  Filter bar: dropdown (By Account / By Customer) + ID input
+    + Filter button + Reset button
+  Record count label
+  Audit table with audit_id, type badge, customer_id,
+  accounts_involved, amount, timestamp
+  Pagination component
+
+-------------------------------------------------------
+UsersPage.jsx — Registered Users (Admin)
+-------------------------------------------------------
+Route: /admin/users  (admin only)
+Imports: api, Navbar, Spinner, ErrorMessage
+
+State: users, loading, error
+
+useEffect:
+  Calls GET /auth/users on mount.
+  Password hashes are already stripped by the service layer
+  before this response arrives.
+
+Layout:
+  User count label
+  Users table with username, role badge (red for admin,
+  indigo for customer), customer_id ("—" for admin),
+  and created_at date
+
+-------------------------------------------------------
+src/components/
+-------------------------------------------------------
+Reusable UI building blocks used across multiple pages.
+Each file contains JSX (React's syntax that looks like HTML)
+styled with Tailwind CSS utility classes. There are no
+separate CSS files per component — styling is applied
+directly via Tailwind class names in the JSX.
+
+Components receive data via props (parent -> child) and
+fire callbacks to communicate back (child -> parent).
+
+ConfirmDialog.jsx
+  A modal overlay shown before any destructive action
+  (e.g. deleting a customer or account on the admin side).
+  Renders a blurred backdrop and a centered dialog card
+  with a warning icon, a message, and Cancel / Delete buttons.
+  Props: message, onConfirm, onCancel
+  onCancel also fires if the user clicks the backdrop.
+
+AccountCard.jsx
+  Displays one bank account with its type, balance, and
+  opened date. Includes an inline nickname editor — clicking
+  the pencil icon switches to an input field, saves via
+  PATCH /api/accounts/{id}/nickname, and fires onNicknameUpdate
+  back up to the parent to update the list without a full reload.
+  Action buttons (Deposit, Withdraw, History, Transfer) fire
+  onAction(accountId, actionType) back up to CustomerDashboard.
+  Props: account, onAction, onNicknameUpdate
+
+ErrorMessage.jsx
+  Displays a red alert block with a warning icon and message.
+  Returns null if message is empty — so pages can always
+  render it and it only appears when there is an error.
+  Props: message
+
+Footer.jsx
+  Static footer showing the app name, copyright symbol,
+  and current year (auto-generated with new Date()).
+  No props. Nested inside public pages (Welcome, Login, Register).
+
+Header.jsx
+  Used on public pages before login. Shows the app name/logo
+  and conditional nav links based on whether a user is logged in.
+  If logged in: shows username, role-based dashboard link, Logout.
+  If not logged in: shows Login and Register buttons.
+  Props: appName, username, role, onLogout (child->parent callback)
+
+Navbar.jsx
+  Used on all authenticated pages after login. Shows the app
+  logo, role-based nav links (admin sees all admin links,
+  customer sees My Accounts only), username, and Logout button.
+  Uses useLocation() to highlight the currently active nav link.
+  Props: username, role, onLogout
+
+Pagination.jsx
+  Renders page number buttons and Prev/Next controls for any
+  table that has more rows than fit on one page.
+  Returns null if totalPages <= 1 so it only appears when needed.
+  Props: currentPage, totalPages, onPageChange
+
+ProtectedRoute.jsx
+  Guards every authenticated route in App.jsx.
+  Reads token and role from localStorage.
+  - No token -> redirects to /login
+  - Wrong role -> redirects to /login
+  - Correct token and role -> renders the protected page
+  Props: children (the page to render), role (required role)
+
+Spinner.jsx
+  Shown during every async Axios call while data is loading.
+  Renders an animated spinning circle with an optional message.
+  Props: message (default: "Loading...")
+
+TransactionCard.jsx
+  Renders one transaction as a table row inside
+  TransactionHistoryPage. Applies color coding:
+    DEPOSIT    -> indigo badge and indigo amount
+    WITHDRAWAL -> slate badge and red amount
+  Props: transaction
+
+-------------------------------------------------------
+src/services/api.js
+-------------------------------------------------------
+The single data service layer for all Axios calls to the
+FastAPI backend. No page or component makes raw Axios calls
+directly — everything goes through api.js.
+
+-------------------------------------------------------
+Axios Instance
+-------------------------------------------------------
+Created with axios.create({ baseURL: import.meta.env.VITE_API_URL }).
+VITE_API_URL is loaded from frontend/.env and resolves to
+http://127.0.0.1:8000 in development.
+All requests made through this instance automatically use
+that base URL — no page needs to hardcode the backend address.
+
+-------------------------------------------------------
+Request Interceptor
+-------------------------------------------------------
+Runs before every outgoing request.
+Reads the token from localStorage and attaches it to the
+Authorization header as a Bearer token:
+  Authorization: Bearer <token>
+There is only one token in localStorage at a time — the
+token type (AdminToken or CustomerToken) is already baked
+into the JWT payload by the backend at login. The interceptor
+does not distinguish between them — it attaches whatever
+token is present.
+If no token exists (unauthenticated user), the header is
+not set and the request goes out without it.
+
+-------------------------------------------------------
+Response Interceptor — Global Error Handling
+-------------------------------------------------------
+Runs after every response comes back from the backend.
+Successful responses (2xx) pass through unchanged.
+For errors, three cases are handled globally here so
+individual pages do not need to repeat this logic:
+
+  401 Unauthorized
+    Token is expired or invalid.
+    Clears localStorage and redirects to /login using
+    window.location.href (hard redirect, not React Router).
+
+  403 Forbidden
+    Role mismatch — the token is valid but the user does
+    not have permission for that route.
+    Returns Promise.reject({ error: 'Access denied' })
+    to the calling page so it can display the message.
+
+  All other errors
+    Extracts the detail field from the FastAPI error response
+    body (error.response?.data?.detail) and returns
+    Promise.reject({ error: detail }) to the caller.
+    Pages catch this in their try/catch and set their
+    error state to display via ErrorMessage.
+
+-------------------------------------------------------
+Exported Functions — Structure
+-------------------------------------------------------
+The file exports named async functions grouped by resource:
+  Auth        — register, login
+  Customers   — getAllCustomers, getCustomer,
+                getCustomerByFirstName, updateCustomer,
+                deleteCustomer, postCustomer
+  Accounts    — createAccount, getAllAccounts, getAccount,
+                getPremiumAccounts, updateAccount,
+                deleteAccount, getAccountsByCustomer
+  Financial   — deposit, withdraw, transfer
+  Transactions — getTransactions
+  Audit       — getAllAudit, getAuditByAccount, getAuditByCustomer
+
+Each function follows the same pattern:
+  1. Calls the Axios instance (api.get / api.post / api.put /
+     api.delete) with the route and any parameters
+  2. On success: returns { data: res.data }
+  3. On error: the catch block returns { error: err.error }
+     with a fallback message
+  Pages destructure the result and check for error before
+  rendering — e.g. const { data, error } = await getAllCustomers()
+
+Note: most pages call the Axios instance directly
+(api.get(), api.post()) rather than using these named
+exports. Both approaches work — the named exports exist
+as a cleaner abstraction but direct calls are also valid
+since both go through the same interceptors.
+
+The default export is the Axios instance itself (export default api)
+so pages can import it and call api.get() / api.post() directly.
+
+-------------------------------------------------------
+src/App.jsx
+-------------------------------------------------------
+The root component. Sets up React Router with all 13
+routes and wraps protected routes in ProtectedRoute to
+enforce authentication and role-based access.
+
+Structure:
+  BrowserRouter wraps the entire app.
+  Routes contains all route definitions.
+
+  Public routes (no auth required):
+    /           -> redirects to /welcome (Navigate)
+    /welcome    -> WelcomePage
+    /login      -> LoginPage
+    /register   -> RegisterPage
+
+  Customer routes (CustomerToken required):
+    /dashboard                    -> CustomerDashboard
+    /accounts/new                 -> CreateAccountPage
+    /accounts/:id/deposit         -> DepositPage
+    /accounts/:id/withdraw        -> WithdrawPage
+    /accounts/:id/transactions    -> TransactionHistoryPage
+    /accounts/:id/transfer        -> TransferPage
+
+  Admin routes (AdminToken required):
+    /admin/dashboard  -> AdminDashboard
+    /admin/customers  -> CustomersPage
+    /admin/accounts   -> AccountsPage
+    /admin/audit      -> AuditPage
+    /admin/users      -> UsersPage
+
+  404 catch-all:
+    * -> redirects to /welcome
+
+  Every protected route is wrapped in ProtectedRoute
+  with the required role prop. ProtectedRoute reads
+  localStorage and redirects to /login if the token
+  is missing or the role does not match.
+
+-------------------------------------------------------
+.oxlintrc.json
+-------------------------------------------------------
+The linter configuration file for oxlint — a fast
+JavaScript/JSX linter used in this project instead
+of the more common ESLint.
+
+oxlint performs static analysis on the source code
+without running it — it catches problems like:
+  - Calling React hooks conditionally (forbidden by React)
+  - Unused variables
+  - Components not exported correctly for Vite's
+    hot module reload (HMR) to work
+
+Configuration:
+  plugins: ["react", "oxc"]
+    Enables the React rules plugin and the oxc core plugin.
+
+  rules:
+    react/rules-of-hooks: "error"
+      Enforces the Rules of Hooks — hooks must be called
+      at the top level of a component, never inside
+      conditionals, loops, or nested functions.
+      Violations are treated as errors (build fails).
+
+    react/only-export-components: ["warn", { allowConstantExport: true }]
+      Warns if a file exports both a component and
+      non-component values, which can break Vite's HMR.
+      allowConstantExport: true permits exporting
+      constants (like PAGE_SIZE or fieldDefs arrays)
+      from the same file as a component without warning.
+
+oxlint runs in the background in VS Code if the oxlint
+extension is installed, or manually via npx oxlint in
+the terminal. It does not affect the running app —
+it is a development-only tool.
+
+-------------------------------------------------------
+.env  (never committed to GitHub)
+-------------------------------------------------------
+Stores the frontend environment variable:
+  VITE_API_URL=http://127.0.0.1:8000
+
+Protected by frontend/.gitignore.
+
+=======================================================
+DESIGN DECISIONS & REASONING
+=======================================================
+
+-------------------------------------------------------
+BACKEND DECISIONS
+-------------------------------------------------------
+
+Why FastAPI over Flask
+  FastAPI auto-generates a Swagger UI at /docs with zero
+  configuration. Every route is immediately testable in the
+  browser without Postman. Flask requires third-party packages
+  to get the same. FastAPI also has built-in async support
+  which pairs naturally with Motor for non-blocking database
+  calls.
+
+Why Pydantic models at the controller layer
+  Pydantic validates every incoming request body before it
+  reaches the service or repository. If a field is missing
+  or the wrong type, FastAPI rejects the request automatically
+  with a 422 error — no manual validation code needed in the
+  service layer. This keeps the service focused purely on
+  business logic.
+
+Why MongoDB Atlas over a relational database
+  The data in this project is naturally document-shaped —
+  an account owns its transactions, a customer owns their
+  accounts. MongoDB stores these as nested documents which
+  maps directly to the JSON responses the frontend expects.
+  A relational database would require JOIN queries to
+  assemble the same data. MongoDB Atlas is also cloud-hosted
+  so there is no local database installation needed.
+
+Why transactions are embedded inside the account document
+  Transactions belong to one account and are always read
+  together with that account. Embedding them avoids a
+  separate collection query every time transaction history
+  is needed. The tradeoff is that the account document grows
+  over time — acceptable for a banking demo where transaction
+  volume per account is manageable.
+
+Why a separate audit collection instead of embedding
+  Audit records span multiple accounts (transfers involve two).
+  They also need to be queried independently by account ID
+  or customer ID for compliance review. Embedding audit records
+  inside accounts would make cross-account queries impossible.
+  A separate collection solves both problems.
+
+Why Motor instead of PyMongo
+  FastAPI is async. PyMongo is synchronous — every database
+  call would block the event loop and eliminate the performance
+  benefit of using FastAPI. Motor is the async version of
+  PyMongo and integrates cleanly with FastAPI's async/await
+  pattern.
+
+Why BCrypt for password hashing
+  BCrypt is a slow hashing algorithm by design — it is
+  computationally expensive to brute-force. It also
+  automatically salts every hash so two identical passwords
+  produce different hashes. Plain text passwords are never
+  stored anywhere in the system.
+
+Why JWT for authentication
+  JWT tokens are stateless — the server does not need to
+  store session data. The token carries the payload
+  (username, role, customer_id) signed with a secret key.
+  The server verifies the signature on every request without
+  a database lookup. Two token types are issued:
+    AdminToken    — role: "admin"    — grants /api/admin access
+    CustomerToken — role: "customer" — grants customer routes only
+
+Why self-scoping checks live in the service layer
+  The service layer has access to the actual account data
+  fetched from the repository. Only at that point can the
+  service compare the token's customer_id against the
+  account's customer_id. The controller layer only has the
+  raw request — it does not know who owns the account.
+
+Why the MVC pattern (Controller -> Service -> Repository)
+  Each layer has one responsibility:
+    Controller  — receives HTTP requests, returns responses
+    Service     — enforces business rules
+    Repository  — reads and writes to the database
+  This separation means business logic can be changed without
+  touching the database layer, and the database can be swapped
+  without touching the business logic. It also makes each
+  layer independently testable.
+
+Why static routes are defined before dynamic routes
+  FastAPI matches routes top to bottom. If /accounts/{id}
+  is defined before /accounts/premium, FastAPI would match
+  the word "premium" as an account ID and the premium route
+  would never be reached. Static routes (/premium, /transfer)
+  are always defined first to prevent this.
+
+Why the admin account is seeded directly in MongoDB
+  The register endpoint creates customer-role accounts only.
+  Allowing admin registration through a public endpoint would
+  be a security risk. The admin account is inserted directly
+  into the users collection with a pre-hashed password and
+  role: "admin" — it bypasses the register flow entirely.
+
+-------------------------------------------------------
+FRONTEND DECISIONS
+-------------------------------------------------------
+
+Why React with Vite instead of Create React App
+  Vite starts the development server almost instantly and
+  supports hot module reload (HMR) — changes appear in the
+  browser without a full page refresh. Create React App is
+  significantly slower to start and build. Vite is the
+  current standard for new React projects.
+
+Why a single Axios instance in api.js
+  Centralizing all API calls in one file means the base URL,
+  the Authorization header, and all error handling are
+  configured once. If the backend URL changes, one line
+  in .env changes it everywhere. If the 401 redirect logic
+  changes, it changes in one place. Pages never need to
+  handle token attachment or 401/403 responses themselves.
+
+Why localStorage for token storage
+  localStorage persists across page refreshes and browser
+  tabs. The token, role, customer_id, and username are all
+  stored there on login and cleared on logout. The alternative
+  (sessionStorage) would log the user out on every tab close
+  which is poor UX for a banking app.
+
+Why ProtectedRoute wraps every authenticated page
+  React Router renders pages client-side — without
+  ProtectedRoute, a user could navigate directly to
+  /admin/dashboard by typing the URL even without a token.
+  ProtectedRoute reads localStorage on every render and
+  redirects to /login if the token or role is missing or wrong.
+
+Why Tailwind CSS instead of Bootstrap
+  Bootstrap applies pre-built component styles that are
+  difficult to customize without overriding CSS. Tailwind
+  applies utility classes directly in JSX — every element
+  is styled exactly as needed with no specificity conflicts.
+  The project started with Bootstrap for speed then
+  transitioned to Tailwind for full control over the design.
+
+Why global component classes are defined in index.css
+  Repeating the same 6-8 Tailwind utility classes for every
+  button or input across 14 pages creates noise and makes
+  changes expensive. Defining .btn-primary, .input, .card
+  etc. in index.css using @layer components means the
+  design can be updated in one place and it applies
+  everywhere instantly.
+
+Why components are split into pages and components folders
+  Pages are full screens tied to a route — they own state,
+  make API calls, and orchestrate the layout. Components
+  are reusable building blocks that receive props and fire
+  callbacks — they have no knowledge of routes or API calls.
+  Keeping them separate makes it clear what is a screen
+  and what is a reusable piece.
+
+Why props flow down and callbacks flow up
+  This is React's one-way data flow model. A parent page
+  passes data to a child component via props. When the child
+  needs to communicate back (e.g. a button click, a saved
+  nickname), it calls a callback function the parent passed
+  down. This keeps state ownership in the parent and makes
+  the child components reusable across different parents.
+
+Why useMemo for the filtered transaction list
+  The filter runs on every render if written as a plain
+  variable. useMemo caches the result and only recalculates
+  when transactions, fromDate, or toDate actually change.
+  For a transaction list that could have hundreds of rows,
+  this avoids unnecessary work on unrelated re-renders.
+
+Why pagination instead of rendering all rows
+  Rendering hundreds of table rows at once is slow and
+  creates a poor user experience. Pagination slices the
+  data array and renders only the current page's rows.
+  The full data is still in state — pagination is purely
+  a display concern handled entirely on the frontend.
+
+Why the CSV export uses a Blob and a temporary URL
+  The browser has no built-in file save dialog for
+  programmatically generated content. Creating a Blob
+  from the CSV string, generating a temporary object URL,
+  and programmatically clicking a hidden anchor tag is
+  the standard browser pattern for triggering a file
+  download without a server round-trip. The URL is
+  revoked immediately after to free memory.
+
+Why the 401 interceptor uses window.location.href
+  React Router's navigate() function only works inside
+  React components. The Axios interceptor runs outside
+  the React component tree — it has no access to the
+  router. window.location.href forces a hard redirect
+  which also clears any in-memory React state, which
+  is the correct behavior after a token expiry.
+
+=======================================================

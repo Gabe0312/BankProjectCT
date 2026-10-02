@@ -9,6 +9,33 @@ FEATURE PRIORITIES
   Priority 3 — Pages & Components (all screens wired to FastAPI)
   Priority 4 — API Connection (Axios calls to all 19 backend routes)
 
+KEY CONCEPTS TO DEMONSTRATE
+=======================================================
+  - Welcome Page (public landing)
+  - Components: Header, Footer (reusable layout wrappers)
+  - Component Nesting: Parent <-> Child relationships
+  - Props System: passing data parent->child AND callbacks child->parent
+  - Data Service layer (api.js) using Axios to call FastAPI backend
+  - DisplayPage pattern: consume API result -> render Table / div / Component
+  - Loading states: spinner / "Loading..." message during async calls
+  - Error states: display error message on API failure
+  - List rendering: minimum list size = 7 items demonstrated
+  - Customer CRUD display: GetAllCustomers, GetCustomerById, DeleteCustomer, PostCustomer
+  - Search & Filter: PremiumCustomers (threshold), FindCustomerByFirstName
+  - Customer <-> Accounts relationship display
+  - Security: JWT Authentication & Authorization
+      -> BCrypt password hashing (never store plain text)
+      -> Server generates JWT containing role/privileges
+      -> Two token types: AdminToken, CustomerToken
+      -> POST /auth/login returns token scoped to role
+      -> Admin can access /api/admin (AdminDashboard)
+      -> Customer CANNOT access /api/admin -> 403 Forbidden
+      -> Customer CAN access /api/customerDashboard/{id} post-login
+      -> Auth progression: Basic Auth -> JWT -> OAuth
+  - Scenario Test: Registration / Login
+      -> Username "admin" is reserved — only the seeded admin account holds it
+      -> Customers cannot register with username "admin"
+
 BRANCH: ReactBankFrontend
 
 =======================================================
@@ -16,311 +43,456 @@ BACKEND ADDITIONS REQUIRED BEFORE FRONTEND
 (New backend work needed to support auth and users table)
 =======================================================
 
-  [ ] 6.0.1  Add users collection to MongoDB
+  [x] 6.0.1  Add users collection to MongoDB
               - username: str (unique, reserved: "admin" cannot be registered by customers)
               - password_hash: str (bcrypt)
               - role: str ("admin" or "customer")
               - customer_id: str (ObjectId, links to customers collection — null for admin)
               - created_at: datetime
 
-  [ ] 6.0.2  Create app/models/user_auth.py
+  [x] 6.0.2  Create app/models/user_auth.py
               - UserAuth model (username, password_hash, role, customer_id, created_at)
               - RegisterRequest (username, password, name, email, phone)
               - LoginRequest (username, password)
               - LoginResponse (access_token, role, customer_id)
 
-  [ ] 6.0.3  Create app/repositories/user_auth_repository.py
+  [x] 6.0.3  Create app/repositories/user_auth_repository.py
               - async save(user)
               - async find_by_username(username)
               - async find_all()
 
-  [ ] 6.0.4  Create app/services/auth_service.py
+  [x] 6.0.4  Create app/services/auth_service.py
               - async register(username, password, name, email, phone)
                   -> reject if username == "admin" (reserved)
                   -> reject if username already taken
-                  -> hash password with bcrypt
+                  -> hash password with bcrypt (never store plain text)
                   -> create customer document (customer_service.create_customer)
                   -> save user_auth document with customer_id link
               - async login(username, password)
                   -> find user by username
                   -> verify bcrypt hash
-                  -> return role + customer_id
+                  -> generate JWT containing { username, role, customer_id }
+                  -> return JWT token + role + customer_id
+              - JWT token types:
+                  -> AdminToken   (role: "admin")    — grants /api/admin access
+                  -> CustomerToken (role: "customer") — grants /api/customerDashboard/{id} only
 
-  [ ] 6.0.5  Create app/controllers/auth_controller.py
+  [x] 6.0.5  Create app/controllers/auth_controller.py
               - POST /auth/register   -> register
-              - POST /auth/login      -> login
+              - POST /auth/login      -> login (returns JWT)
+              - GET  /auth/users      -> list all users (admin only, JWT required)  <- see 6.0.7 for JWT dependency
 
-  [ ] 6.0.6  Register auth_controller router in main.py
+  [x] 6.0.6  Register auth_controller router in main.py
+
+  [x] 6.0.7  Add JWT middleware / dependency to FastAPI
+              - Install: pip install python-jose[cryptography] passlib[bcrypt]
+              - Create app/services/jwt_service.py
+                  -> create_access_token(data: dict) -> str
+                  -> decode_token(token: str) -> dict
+              - Create get_current_user() FastAPI dependency
+                  -> reads Bearer token from Authorization header
+                  -> decodes JWT and returns user payload
+              - Create require_admin() dependency
+                  -> calls get_current_user()
+                  -> raises 403 Forbidden if role != "admin"
+              - Create require_customer_self(customer_id) dependency
+                  -> raises 403 Forbidden if token customer_id != path customer_id
+
+  [x] 6.0.8  Protect existing FastAPI routes with JWT dependencies
+              - All /api/admin/* routes   -> require_admin()
+              - /api/customerDashboard/{id} -> require_customer_self(id)
+              - Scenario test:
+                  -> POST /auth/login as admin   -> receive AdminToken
+                  -> GET  /api/admin             -> 200 OK
+                  -> POST /auth/login as customer -> receive CustomerToken
+                  -> GET  /api/admin             -> 403 Forbidden
+                  -> GET  /api/customerDashboard/{own_id} -> 200 OK
 
 -------------------------------------------------------
-STEP 1 — Frontend Project Setup                         [ ] PENDING
+STEP 1 — Frontend Project Setup                         [x] DONE
 -------------------------------------------------------
-  [ ] 6.1.1  Scaffold React app inside BankProjectCT/frontend/
+  [x] 6.1.1  Scaffold React app inside BankProjectCT/frontend/
               using Vite:
               npm create vite@latest frontend -- --template react
-  [ ] 6.1.2  Install dependencies
+  [x] 6.1.2  Install dependencies
               npm install axios react-router-dom bootstrap
-  [ ] 6.1.3  Import Bootstrap in main.jsx or index.css
+  [x] 6.1.3  Import Bootstrap in main.jsx or index.css
               import 'bootstrap/dist/css/bootstrap.min.css'
-  [ ] 6.1.4  Add Google Fonts (Inter) to index.html <head>
+  [x] 6.1.4  Add Google Fonts (Inter) to index.html <head>
               <link rel="preconnect" href="https://fonts.googleapis.com">
               <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
               <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
-  [ ] 6.1.5  Apply Inter globally in index.css
+  [x] 6.1.5  Apply Inter globally in index.css
               * {
                 font-family: "Inter", sans-serif;
                 font-optical-sizing: auto;
               }
-  [ ] 6.1.6  Create frontend/.env
+  [x] 6.1.6  Create frontend/.env
               VITE_API_URL=http://127.0.0.1:8000
-  [ ] 6.1.7  Create src/services/api.js
+  [x] 6.1.7  Create src/services/api.js
               - Axios instance with baseURL from VITE_API_URL
               - Single point of contact for all FastAPI calls
 
 -------------------------------------------------------
-STEP 2 — Routing Setup                                  [ ] PENDING
+STEP 2 — Routing Setup                                  [x] DONE
 -------------------------------------------------------
-  [ ] 6.2.1  Set up React Router in src/App.jsx
+  [x] 6.2.1  Set up React Router in src/App.jsx
               - Wrap app in <BrowserRouter>
               - Define all routes (see page list in Step 4)
-  [ ] 6.2.2  Create ProtectedRoute component
+  [x] 6.2.2  Create ProtectedRoute component
               - Reads role from localStorage
               - Redirects to /login if not authenticated
               - Redirects to /login if role does not match required role
 
 -------------------------------------------------------
-STEP 3 — Auth Pages                                     [ ] PENDING
+STEP 3 — Auth Pages                                     [x] DONE
 -------------------------------------------------------
-  [ ] 6.3.1  Create src/pages/WelcomePage.jsx
-              - Landing page shown to unauthenticated users
+  [x] 6.3.1  Create src/pages/WelcomePage.jsx
+              - Public landing page (no auth required)
+              - Renders Header and Footer components (nesting demo)
+              - Passes appName prop down to Header (parent->child props)
               - Buttons: Login, Register
-              - No auth required to view
+              - Brief app description / hero text
 
-  [ ] 6.3.2  Create src/pages/RegisterPage.jsx
+  [x] 6.3.2  Create src/pages/RegisterPage.jsx
               - Fields: username, password, name, email, phone
               - Calls POST /auth/register
               - On success: redirect to /login
               - On error: show error message (e.g. username taken, reserved)
 
-  [ ] 6.3.3  Create src/pages/LoginPage.jsx
+  [x] 6.3.3  Create src/pages/LoginPage.jsx
               - Fields: username, password
               - Calls POST /auth/login
-              - On success: store role + customer_id in localStorage
+              - On success: store JWT token + role + customer_id + username in localStorage
                   -> role === "admin"    -> redirect to /admin/dashboard
                   -> role === "customer" -> redirect to /dashboard
               - On error: show invalid credentials message
+              - Scenario test:
+                  -> Login as admin   -> AdminToken stored -> /admin/dashboard accessible
+                  -> Login as customer -> CustomerToken stored -> /admin/dashboard returns 403
 
-  [ ] 6.3.4  Implement logout
+  [x] 6.3.4  Implement logout
               - Clear localStorage (role, customer_id)
               - Redirect to /welcome
 
 -------------------------------------------------------
-STEP 4 — Pages                                          [ ] PENDING
+STEP 4 — Pages                                          [x] DONE
 -------------------------------------------------------
 
   CUSTOMER PAGES (role: "customer")
   ---------------------------------
-  [ ] 6.4.1  src/pages/CustomerDashboard.jsx
+  [x] 6.4.1  src/pages/CustomerDashboard.jsx
               - Displays all accounts for the logged-in customer
               - Calls GET /api/customers/{customer_id}/accounts
               - Each account shows: account_id, account_type, balance
               - Buttons per account: Deposit, Withdraw, View Transactions
               - Button: Create New Account
 
-  [ ] 6.4.2  src/pages/CreateAccountPage.jsx
+  [x] 6.4.2  src/pages/CreateAccountPage.jsx
               - Dropdown: account type (SAVINGS / CHECKING)
               - customer_id pre-filled from localStorage (not shown to user)
               - Calls POST /api/accounts
               - On success: redirect to /dashboard
 
-  [ ] 6.4.3  src/pages/DepositPage.jsx
+  [x] 6.4.3  src/pages/DepositPage.jsx
               - Input: amount
               - account_id passed via route param or state
               - Calls POST /api/accounts/{account_id}/deposit
               - On success: show updated balance, back button to dashboard
 
-  [ ] 6.4.4  src/pages/WithdrawPage.jsx
+  [x] 6.4.4  src/pages/WithdrawPage.jsx
               - Input: amount
               - account_id passed via route param or state
               - Calls POST /api/accounts/{account_id}/withdraw
               - On success: show updated balance, back button to dashboard
               - On error: show insufficient funds message
 
-  [ ] 6.4.5  src/pages/TransactionHistoryPage.jsx
+  [x] 6.4.5  src/pages/TransactionHistoryPage.jsx
               - Calls GET /api/accounts/{account_id}/transactions
               - Table: txn_id, txn_type, amount, created_at
               - Back button to dashboard
 
   ADMIN PAGES (role: "admin")
   ---------------------------
-  [ ] 6.4.6  src/pages/AdminDashboard.jsx
+  [x] 6.4.6  src/pages/AdminDashboard.jsx
               - Overview panel for admin
               - Links to: Customers, Accounts, Audit Log, Users
 
-  [ ] 6.4.7  src/pages/CustomersPage.jsx  (admin only)
+  [x] 6.4.7  src/pages/CustomersPage.jsx  (admin only)
               - Calls GET /api/customers
               - Table: customer_id, name, email, phone, created_at
               - Buttons per row: View Accounts, Delete
 
-  [ ] 6.4.8  src/pages/AccountsPage.jsx  (admin only)
+  [x] 6.4.8  src/pages/AccountsPage.jsx  (admin only)
               - Calls GET /api/accounts
               - Table: account_id, customer_id, account_type, balance, created_at
               - Button: Get Premium Accounts (prompts threshold input)
 
-  [ ] 6.4.9  src/pages/AuditPage.jsx  (admin only)
+  [x] 6.4.9  src/pages/AuditPage.jsx  (admin only)
               - Calls GET /api/audit
               - Table: audit_id, transaction_type, customer_id,
                         accounts_involved, amount, timestamp
               - Filter buttons: by account, by customer
 
-  [ ] 6.4.10 src/pages/UsersPage.jsx  (admin only)
+  [x] 6.4.10 src/pages/UsersPage.jsx  (admin only)
               - Calls GET /auth/users (new backend endpoint)
               - Table: username, role, customer_id, created_at
               - Shows all registered users in the system
 
 -------------------------------------------------------
-STEP 5 — Reusable Components                            [ ] PENDING
+STEP 5 — Reusable Components                            [x] DONE
 -------------------------------------------------------
-  [ ] 6.5.1  src/components/Navbar.jsx
-              - Shows app name
-              - Shows logged-in username and role
-              - Logout button
+  [x] 6.5.1  src/components/Header.jsx
+              - Displays app name / logo
+              - Props (parent->child): appName, username, role
+              - Renders nav links conditional on role
+              - Logout button fires onLogout callback (child->parent prop)
+
+  [x] 6.5.2  src/components/Footer.jsx
+              - Static footer: app name, year
+              - No props required
+              - Nested inside WelcomePage, LoginPage, RegisterPage
+
+  [x] 6.5.3  src/components/Navbar.jsx
+              - Authenticated navbar (replaces Header post-login)
+              - Props: username, role, onLogout
               - Admin nav links vs Customer nav links (conditional on role)
 
-  [ ] 6.5.2  src/components/AccountCard.jsx
-              - Displays one account: type, balance, created_at
+  [x] 6.5.4  src/components/AccountCard.jsx
+              - Props (parent->child): account object
+              - Displays: type, balance, created_at
               - Deposit / Withdraw / Transactions buttons
+              - onAction callback prop (child->parent) for button clicks
 
-  [ ] 6.5.3  src/components/TransactionCard.jsx
+  [x] 6.5.5  src/components/TransactionCard.jsx
+              - Props: transaction object
               - Displays one transaction row: type, amount, date
 
-  [ ] 6.5.4  src/components/Button.jsx
+  [x] 6.5.6  src/components/Button.jsx
+              - Props: label, onClick, variant (primary/danger/secondary), disabled
               - Reusable Bootstrap-styled button
-              - Props: label, onClick, variant (primary/danger/secondary)
+
+  [x] 6.5.7  src/components/Spinner.jsx
+              - Shown during any async Axios call in flight
+              - Props: message (optional, default "Loading...")
+
+  [x] 6.5.8  src/components/ErrorMessage.jsx
+              - Props: message
+              - Displays Bootstrap alert-danger block
+              - Used on all pages that make API calls
+
+  PROPS SYSTEM SUMMARY
+  --------------------
+  Parent -> Child (data down):
+    - WelcomePage passes appName to Header
+    - CustomerDashboard passes account object to AccountCard
+    - TransactionHistoryPage passes transaction object to TransactionCard
+    - Any page passes loading/error state to Spinner/ErrorMessage
+
+  Child -> Parent (callbacks up):
+    - Header fires onLogout() up to App/layout
+    - AccountCard fires onAction(accountId, actionType) up to CustomerDashboard
+    - Any form component fires onSubmit(data) up to parent page
 
 -------------------------------------------------------
-STEP 6 — API Connection (api.js)                        [ ] PENDING
+STEP 6 — API Connection (api.js)                        [x] DONE
 -------------------------------------------------------
-  [ ] 6.6.1  Auth endpoints
+  DATA SERVICE PATTERN
+  --------------------
+  - api.js is the single Data Service layer (no raw Axios calls in components)
+  - Axios instance attaches JWT from localStorage to every request:
+      Authorization: Bearer <token>
+  - Axios response interceptor:
+      -> 401 Unauthorized -> clear localStorage, redirect to /login
+      -> 403 Forbidden    -> show "Access denied" message
+      -> other errors     -> return structured { error: detail } to caller
+  - Every exported function returns { data } on success or { error } on failure
+  - Pages consume the service, check for error, set loading/error state
+
+  [x] 6.6.1  Auth endpoints
               - register(username, password, name, email, phone)
-              - login(username, password)
+              - login(username, password)  -> stores JWT in localStorage
 
-  [ ] 6.6.2  Customer endpoints
-              - getAllCustomers()
+  [x] 6.6.2  Customer endpoints
+              - getAllCustomers()                    -> list >= 7 items for list demo
               - getCustomer(customerId)
+              - getCustomerByFirstName(firstName)    -> search/filter demo
               - updateCustomer(customerId, fields)
               - deleteCustomer(customerId)
+              - postCustomer(name, email, phone)     -> admin create customer
 
-  [ ] 6.6.3  Account endpoints
+  [x] 6.6.3  Account endpoints
               - createAccount(customerId, accountType)
               - getAllAccounts()
               - getAccount(accountId)
-              - getPremiumAccounts(threshold)
+              - getPremiumAccounts(threshold)        -> search/filter demo
               - updateAccount(accountId, fields)
               - deleteAccount(accountId)
-              - getAccountsByCustomer(customerId)
+              - getAccountsByCustomer(customerId)    -> Customer <-> Accounts display
 
-  [ ] 6.6.4  Financial operation endpoints
+  [x] 6.6.4  Financial operation endpoints
               - deposit(accountId, amount)
               - withdraw(accountId, amount)
               - transfer(fromAccountId, toAccountId, amount)
 
-  [ ] 6.6.5  Transaction endpoints
+  [x] 6.6.5  Transaction endpoints
               - getTransactions(accountId)
 
-  [ ] 6.6.6  Audit endpoints
+  [x] 6.6.6  Audit endpoints
               - getAllAudit()
               - getAuditByAccount(accountId)
               - getAuditByCustomer(customerId)
 
 -------------------------------------------------------
-STEP 7 — Styling (Bootstrap)                            [ ] PENDING
+STEP 7 — Styling (Bootstrap)                            [x] DONE
 -------------------------------------------------------
-  [ ] 6.7.1  Apply Bootstrap grid layout to all pages
-  [ ] 6.7.2  Style all forms (form-control, form-label, btn)
-  [ ] 6.7.3  Style all tables (table, table-striped, table-hover)
-  [ ] 6.7.4  Style Navbar with Bootstrap navbar component
-  [ ] 6.7.5  Verify responsiveness on desktop, tablet, mobile
+  [x] 6.7.1  Apply Bootstrap grid layout to all pages
+  [x] 6.7.2  Style all forms (form-control, form-label, btn)
+  [x] 6.7.3  Style all tables (table, table-striped, table-hover)
+  [x] 6.7.4  Style Navbar with Bootstrap navbar component
+  [x] 6.7.5  Verify responsiveness on desktop, tablet, mobile
 
 -------------------------------------------------------
-STEP 8 — Testing                                        [ ] PENDING
+STEP 8 — Testing & Scenario Tests                       [x] DONE
 -------------------------------------------------------
-  [ ] 6.8.1  Test Register flow (new customer created in MongoDB)
-  [ ] 6.8.2  Test Login as customer -> redirects to CustomerDashboard
-  [ ] 6.8.3  Test Login as admin -> redirects to AdminDashboard
-  [ ] 6.8.4  Test that username "admin" cannot be registered
-  [ ] 6.8.5  Test Deposit, Withdraw, Transfer flows end to end
-  [ ] 6.8.6  Test Transaction History page
-  [ ] 6.8.7  Test Admin: Customers, Accounts, Audit, Users pages
-  [ ] 6.8.8  Test ProtectedRoute blocks unauthenticated access
-  [ ] 6.8.9  Test logout clears session and redirects to /welcome
+  REGISTRATION / LOGIN SCENARIO
+  ------------------------------
+  [x] 6.8.1  Test Register flow (new customer created in MongoDB)
+              - BCrypt hash stored, plain text password NOT in DB
+  [x] 6.8.2  Test that username "admin" cannot be registered (reserved)
+  [x] 6.8.3  Test Login as customer
+              -> CustomerToken returned
+              -> redirects to /dashboard
+              -> GET /api/admin returns 403 Forbidden
+              -> GET /api/customerDashboard/{own_id} returns 200 OK
+  [x] 6.8.4  Test Login as admin
+              -> AdminToken returned
+              -> redirects to /admin/dashboard
+              -> GET /api/admin returns 200 OK
+
+  JWT AUTHORIZATION SCENARIO
+  --------------------------
+  [x] 6.8.5  Attempt /admin/dashboard without token -> redirect to /login
+  [x] 6.8.6  Attempt /admin/dashboard with CustomerToken -> 403 Forbidden shown
+  [x] 6.8.7  Attempt /dashboard with AdminToken -> 403 Forbidden shown
+
+  CUSTOMER CRUD DISPLAY SCENARIO
+  ------------------------------
+  [x] 6.8.8  CustomersPage shows list of >= 7 customers (GetAllCustomers)
+  [x] 6.8.9  GetCustomerById: click row -> shows customer detail
+  [x] 6.8.10 DeleteCustomer: delete button removes row from table
+  [x] 6.8.11 PostCustomer: admin creates new customer via form
+
+  SEARCH & FILTER SCENARIO
+  ------------------------
+  [x] 6.8.12 PremiumAccounts filter: enter threshold -> table updates
+  [x] 6.8.13 FindCustomerByFirstName: search input -> filtered list
+
+  CUSTOMER <-> ACCOUNTS SCENARIO
+  -------------------------------
+  [x] 6.8.14 CustomerDashboard shows all accounts for logged-in customer
+  [x] 6.8.15 Admin CustomersPage: "View Accounts" shows accounts for that customer
+
+  FINANCIAL FLOWS
+  ---------------
+  [x] 6.8.16 Test Deposit, Withdraw, Transfer flows end to end
+  [x] 6.8.17 Test Transaction History page (>= 7 rows rendered)
+
+  LOADING & ERROR STATES
+  ----------------------
+  [x] 6.8.18 Spinner shown while API call is in flight on every page
+  [x] 6.8.19 ErrorMessage shown on API failure (network error, 4xx, 5xx)
+
+  GENERAL
+  -------
+  [x] 6.8.20 Test ProtectedRoute blocks unauthenticated access
+  [x] 6.8.21 Test logout clears localStorage and redirects to /welcome
 
 -------------------------------------------------------
-STEP 9 — Bootstrap -> Tailwind CSS Transition           [ ] PENDING
+STEP 9 — Bootstrap -> Tailwind CSS Transition           [x] DONE
 -------------------------------------------------------
-  [ ] 6.9.1  Install Tailwind CSS
-              npm install -D tailwindcss postcss autoprefixer
-              npx tailwindcss init -p
-  [ ] 6.9.2  Configure tailwind.config.js
+  [x] 6.9.1  Install Tailwind CSS
+              npm install -D tailwindcss@3 postcss autoprefixer
+              (npx init broken on Windows — configs created manually)
+  [x] 6.9.2  Configure tailwind.config.js
               - Set content paths to cover all .jsx files
-  [ ] 6.9.3  Replace Bootstrap import with Tailwind directives in index.css
+  [x] 6.9.3  Replace Bootstrap import with Tailwind directives in index.css
               @tailwind base;
               @tailwind components;
               @tailwind utilities;
-  [ ] 6.9.4  Remove Bootstrap from package.json
+  [x] 6.9.4  Remove Bootstrap from package.json
               npm uninstall bootstrap
-  [ ] 6.9.5  Swap Bootstrap class names to Tailwind utilities — component by component
-              - Button.jsx         (btn btn-primary -> bg-blue-500 text-white px-4 py-2 rounded)
-              - Navbar.jsx         (navbar -> flex bg-gray-800 text-white px-6 py-4)
-              - AccountCard.jsx    (card -> rounded-lg shadow p-4 bg-white)
-              - TransactionCard.jsx
-              - All page forms     (form-control -> border rounded px-3 py-2 w-full)
-              - All page tables    (table table-striped -> w-full border-collapse)
-  [ ] 6.9.6  Verify responsiveness across desktop, tablet, mobile after swap
+              Bootstrap CDN JS bundle removed from index.html
+  [x] 6.9.5  Swap Bootstrap class names to Tailwind utilities — all at once
+              - Button.jsx         (btn btn-primary -> bg-blue-600 text-white px-3 py-1.5 rounded)
+              - Navbar.jsx / Header.jsx (navbar bg-dark -> bg-gray-900 flex items-center)
+              - Footer.jsx         (bg-dark text-light -> bg-gray-900 text-gray-400)
+              - Spinner.jsx        (spinner-border -> animate-spin border rounded-full)
+              - ErrorMessage.jsx   (alert alert-danger -> bg-red-50 border-red-300 text-red-700)
+              - AccountCard.jsx    (card -> rounded-lg shadow bg-white)
+              - TransactionCard.jsx (badge -> bg-green/yellow/blue-100 text-*-700)
+              - All 13 pages       (container/row/col -> max-w-* mx-auto grid gap-*)
+  [x] 6.9.6  Verify responsiveness across desktop, tablet, mobile after swap
 
 -------------------------------------------------------
-STEP 10 — Error Handling & Final Cleanup                [ ] PENDING
+STEP 10 — Error Handling & Final Cleanup                [x] DONE
 -------------------------------------------------------
-  [ ] 6.10.1  Global error handling in api.js
+  [x] 6.10.1  Global error handling in api.js
                - Axios interceptor catches all non-2xx responses
-               - Returns structured error message to calling component
-  [ ] 6.10.2  Error display on all forms
+               - 401 -> clear localStorage + redirect to /login
+               - 403 -> return { error: 'Access denied' } to caller
+               - All others -> return { error: detail } to caller
+  [x] 6.10.2  Error display on all forms
                - Register: username taken, reserved username, missing fields
                - Login: invalid credentials
                - Deposit/Withdraw: invalid amount, insufficient funds
                - Transfer: invalid amount, insufficient funds, account not found
-  [ ] 6.10.3  Loading states on all async calls
-               - Show spinner or disabled button while Axios call is in flight
-  [ ] 6.10.4  404 page
-               - Catch-all route in App.jsx for unknown paths
-               - Redirect button back to /welcome
-  [ ] 6.10.5  Backend error handling audit
-               - Verify all FastAPI endpoints return consistent error shapes
-               - { "detail": "..." } on all 400 and 404 responses
-  [ ] 6.10.6  Remove all console.log statements from production code
-  [ ] 6.10.7  Final cleanup
-               - Remove unused imports across all files
-               - Verify all routes in App.jsx match the route map
-               - Confirm .env is in .gitignore (frontend and backend)
+               - All pages wire ErrorMessage to catch block
+  [x] 6.10.3  Loading states on all async calls
+               - Spinner shown while Axios call is in flight on every page
+               - Submit buttons disabled during loading to prevent double-submit
+  [x] 6.10.4  404 page
+               - Catch-all route in App.jsx: <Route path="*" -> /welcome
+  [x] 6.10.5  Backend error handling audit
+               - All FastAPI endpoints raise HTTPException with { "detail": "..." }
+               - Fixed missing + "Z" on timestamps in customer_service.py,
+                 auth_service.py, and audit_service.py
+  [x] 6.10.6  Remove all console.log statements from production code
+               - Zero console.log found across all frontend files
+  [x] 6.10.7  Final cleanup
+               - No unused imports found across all files
+               - All 13 routes in App.jsx verified against route map
+               - Backend .gitignore: .env present
+               - Frontend .gitignore: .env and .env.* added
                - Smoke test all 13 frontend routes end to end
 
 =======================================================
 ROUTE MAP
 =======================================================
 
-  /welcome                    WelcomePage           (public)
+  FRONTEND ROUTES
+  ---------------
+  /welcome                    WelcomePage           (public)         Header + Footer nested
   /register                   RegisterPage          (public)
   /login                      LoginPage             (public)
-  /dashboard                  CustomerDashboard     (customer only)
+  /dashboard                  CustomerDashboard     (customer only)  AccountCard list
   /accounts/new               CreateAccountPage     (customer only)
   /accounts/:id/deposit       DepositPage           (customer only)
   /accounts/:id/withdraw      WithdrawPage          (customer only)
-  /accounts/:id/transactions  TransactionHistoryPage(customer only)
+  /accounts/:id/transactions  TransactionHistoryPage(customer only)  TransactionCard list >= 7
   /admin/dashboard            AdminDashboard        (admin only)
-  /admin/customers            CustomersPage         (admin only)
-  /admin/accounts             AccountsPage          (admin only)
+  /admin/customers            CustomersPage         (admin only)     CRUD + Search/Filter
+  /admin/accounts             AccountsPage          (admin only)     PremiumAccounts filter
   /admin/audit                AuditPage             (admin only)
   /admin/users                UsersPage             (admin only)
+
+  API BACKEND ROUTES (FastAPI)
+  ----------------------------
+  /api/admin                        -> AdminToken required (403 for CustomerToken)
+  /api/customerDashboard/{id}       -> CustomerToken required, self only
+  /auth/register                    -> public
+  /auth/login                       -> public, returns JWT
+  /auth/users                       -> AdminToken required
 
 =======================================================
 AUTH RULES
@@ -328,11 +500,18 @@ AUTH RULES
 
   - Username "admin" is reserved — no customer can register with it
   - Admin account is seeded directly in MongoDB (not via register endpoint)
+  - Passwords stored as BCrypt hash ONLY — never plain text
+  - Server generates JWT on login containing: { username, role, customer_id }
+  - Two token types:
+      AdminToken    (role: "admin")    -> grants /api/admin access
+      CustomerToken (role: "customer") -> grants /api/customerDashboard/{id} only
   - role: "admin"    -> access to all admin pages only
   - role: "customer" -> access to customer pages only, scoped to their own data
-  - localStorage stores: { role, customer_id, username }
+  - localStorage stores: { token, role, customer_id, username }
+  - Axios attaches token as Authorization: Bearer <token> on every request
   - ProtectedRoute checks localStorage on every protected page load
   - Logout clears localStorage and redirects to /welcome
+  - Auth progression reference: Basic Auth -> JWT -> OAuth
 
 =======================================================
 ADMIN SEED (do manually in MongoDB Atlas or via script)
@@ -350,20 +529,20 @@ ADMIN SEED (do manually in MongoDB Atlas or via script)
 EXECUTION ORDER
 =======================================================
 
-  Backend auth additions (6.0.x)
+  Backend auth additions (6.0.x)          <- BCrypt + JWT setup here
   -> Frontend project setup (6.1.x)
   -> Routing (6.2.x)
-  -> Auth pages (6.3.x)
-  -> Customer pages (6.4.1 - 6.4.5)
-  -> Admin pages (6.4.6 - 6.4.10)
-  -> Components (6.5.x)
-  -> API connection (6.6.x)
+  -> Auth pages (6.3.x)                   <- WelcomePage with Header/Footer nesting
+  -> Customer pages (6.4.1 - 6.4.5)      <- AccountCard props demo
+  -> Admin pages (6.4.6 - 6.4.10)        <- CRUD + Search/Filter + list >= 7
+  -> Components (6.5.x)                   <- Header, Footer, Spinner, ErrorMessage
+  -> API connection (6.6.x)               <- Data Service layer + JWT interceptor
   -> Styling Bootstrap (6.7.x)
-  -> Testing (6.8.x)
+  -> Scenario Testing (6.8.x)             <- JWT auth scenarios + CRUD scenarios
   -> Tailwind transition (6.9.x)
   -> Error handling + final cleanup (6.10.x)
 
 =======================================================
-CURRENT STATUS:  Phase 6 not started — branch ReactBankFrontend created
-NEXT ACTION:     Start backend auth additions (Step 6.0) before touching frontend
+CURRENT STATUS:  Step 6.10 complete — Phase 6 FINISHED
+NEXT ACTION:     None — all steps complete
 =======================================================

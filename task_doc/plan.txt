@@ -260,25 +260,25 @@ FUTURE - PHASE 5: MongoDB Atlas Integration  COMPLETE
   [x] DELETE backend/app/data/store.py — removed, MongoDB Atlas confirmed
   [x] DELETE backend/app/repositories/user_repository.py — replaced by customer_repository.py
 
-FUTURE - PHASE 6: Frontend (React + Bootstrap)
-  [ ] Set up React app (create-react-app or Vite)
-  [ ] Install Bootstrap and Axios
-  [ ] Build reusable components (Navbar, Button, AccountCard, TransactionCard)
-  [ ] Build pages (Home, CreateAccount, AccountDetails, Deposit, Withdraw, Transactions)
-  [ ] Set up React Router for page navigation
-  [ ] Connect api.js Axios calls to FastAPI backend
-  [ ] Style all pages with Bootstrap
+FUTURE - PHASE 6: Frontend (React + Bootstrap)  COMPLETE
+  [x] Set up React app (create-react-app or Vite)
+  [x] Install Bootstrap and Axios
+  [x] Build reusable components (Navbar, Button, AccountCard, TransactionCard)
+  [x] Build pages (Home, CreateAccount, AccountDetails, Deposit, Withdraw, Transactions)
+  [x] Set up React Router for page navigation
+  [x] Connect api.js Axios calls to FastAPI backend
+  [x] Style all pages with Bootstrap
 
-FUTURE - PHASE 7: Bootstrap → Tailwind CSS Transition
-  [ ] Install Tailwind CSS
-  [ ] Remove Bootstrap
-  [ ] Swap Bootstrap class names to Tailwind utilities component by component
-  [ ] Verify responsiveness across desktop, tablet, mobile
+FUTURE - PHASE 7: Bootstrap → Tailwind CSS Transition  COMPLETE
+  [x] Install Tailwind CSS
+  [x] Remove Bootstrap
+  [x] Swap Bootstrap class names to Tailwind utilities component by component
+  [x] Verify responsiveness across desktop, tablet, mobile
 
-FUTURE - PHASE 8: Testing & Cleanup
-  [ ] Auth routes (register, login, logout)
-  [ ] Error handling
-  [ ] Final cleanup
+FUTURE - PHASE 8: Testing & Cleanup  COMPLETE
+  [x] Auth routes (register, login, logout)
+  [x] Error handling
+  [x] Final cleanup
 
 -------------------------------------------------------
 KEY DESIGN DECISIONS
