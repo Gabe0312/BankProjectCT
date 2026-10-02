@@ -14,3 +14,7 @@ env/
 
 # Logs
 *.log
+
+# Lambda build artifacts
+package/
+*.zip

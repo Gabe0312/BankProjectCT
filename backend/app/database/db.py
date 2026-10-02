@@ -1,16 +1,13 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+import os
+from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGODB_URL, DATABASE_NAME
 
-client: AsyncIOMotorClient = None
+load_dotenv()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global client
-    client = AsyncIOMotorClient(MONGODB_URL)
-    yield
-    client.close()
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "bank_db")
+
+client = AsyncIOMotorClient(MONGODB_URL)
 
 def get_database():
     return client[DATABASE_NAME]
