@@ -3,10 +3,12 @@ from datetime import datetime
 from enum import Enum
 
 
-# Enum for the two supported transaction types
+# Enum for all supported transaction types
 class TransactionType(str, Enum):
     DEPOSIT = "DEPOSIT"
     WITHDRAWAL = "WITHDRAWAL"
+    TRANSFER_OUT = "TRANSFER OUT"
+    TRANSFER_IN = "TRANSFER IN"
 
 
 class Transaction(BaseModel):

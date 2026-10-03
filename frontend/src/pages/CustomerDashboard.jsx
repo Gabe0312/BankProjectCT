@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Building2 } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import AccountCard from '../components/AccountCard'
@@ -44,6 +46,12 @@ const CustomerDashboard = () => {
 
   const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
 
+  const COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#e0e7ff']
+  const donutData = accounts.map(a => ({
+    name: a.nickname || a.account_type,
+    value: parseFloat(a.balance.toFixed(2)),
+  }))
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
       <Navbar username={username} role="customer" onLogout={handleLogout} />
@@ -56,8 +64,24 @@ const CustomerDashboard = () => {
           <div className="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
           <p className="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-1">Total Balance</p>
           <p className="text-4xl font-extrabold mb-1">${totalBalance.toFixed(2)}</p>
-          <p className="text-indigo-300 text-sm">Welcome back, <span className="text-white font-semibold">{username}</span> 👋</p>
+          <p className="text-indigo-300 text-sm">Welcome back, <span className="text-white font-semibold">{username}</span></p>
         </div>
+
+        {/* Donut chart — only show with 2+ accounts */}
+        {!loading && accounts.length >= 2 && (
+          <div className="card p-5 mb-6">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Balance Distribution</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={donutData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
+                  {donutData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, '']} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Header row */}
         <div className="flex justify-between items-center mb-5">
@@ -72,7 +96,9 @@ const CustomerDashboard = () => {
 
         {!loading && !error && accounts.length === 0 && (
           <div className="card text-center py-20 text-slate-400">
-            <div className="text-5xl mb-4">🏦</div>
+            <div className="flex justify-center mb-4">
+              <Building2 className="w-12 h-12 text-slate-300" />
+            </div>
             <p className="text-slate-500">No accounts yet. Use the button above to get started.</p>
           </div>
         )}

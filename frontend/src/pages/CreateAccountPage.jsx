@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Building2, PiggyBank, CreditCard } from 'lucide-react'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
 import ErrorMessage from '../components/ErrorMessage'
 
 const accountTypes = [
-  { value: 'SAVINGS',  label: 'Savings',  icon: '💰', desc: 'Earn interest on your balance' },
-  { value: 'CHECKING', label: 'Checking', icon: '🏧', desc: 'For everyday transactions' },
+  { value: 'SAVINGS',  label: 'Savings',  icon: PiggyBank, desc: 'Earn interest on your balance' },
+  { value: 'CHECKING', label: 'Checking', icon: CreditCard, desc: 'For everyday transactions' },
 ]
 
 const CreateAccountPage = () => {
@@ -48,7 +49,7 @@ const CreateAccountPage = () => {
 
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-200">
-              <span className="text-white text-xl">🏦</span>
+              <Building2 className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-extrabold text-slate-800">Open New Account</h1>
             <p className="text-slate-500 text-sm mt-1">Choose your account type</p>
@@ -72,7 +73,9 @@ const CreateAccountPage = () => {
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
-                    <div className="text-2xl mb-1">{t.icon}</div>
+                    <div className="mb-2">
+                      <t.icon className={`w-6 h-6 ${accountType === t.value ? 'text-indigo-600' : 'text-slate-400'}`} />
+                    </div>
                     <div className={`text-sm font-bold ${accountType === t.value ? 'text-indigo-700' : 'text-slate-700'}`}>{t.label}</div>
                     <div className="text-xs text-slate-400 mt-0.5">{t.desc}</div>
                   </button>

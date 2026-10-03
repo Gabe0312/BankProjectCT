@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Download } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import TransactionCard from '../components/TransactionCard'
@@ -52,6 +54,18 @@ const TransactionHistoryPage = () => {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
+  const runningBalance = useMemo(() => {
+    const sorted = [...transactions].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    let balance = 0
+    return sorted.map(txn => {
+      balance += txn.txn_type === 'DEPOSIT' ? txn.amount : -txn.amount
+      return {
+        date: new Date(txn.created_at).toLocaleDateString(),
+        balance: parseFloat(balance.toFixed(2)),
+      }
+    })
+  }, [transactions])
+
   const handleExportCSV = () => {
     const header = 'Transaction ID,Type,Amount,Date'
     const rows = filtered.map(txn =>
@@ -97,11 +111,26 @@ const TransactionHistoryPage = () => {
             Clear
           </button>
           <div className="ml-auto">
-            <button className="btn-primary text-sm" onClick={handleExportCSV} disabled={filtered.length === 0}>
-              ↓ Export CSV
+            <button className="btn-primary text-sm flex items-center gap-1.5" onClick={handleExportCSV} disabled={filtered.length === 0}>
+              <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
         </div>
+
+        {!loading && !error && runningBalance.length >= 2 && (
+          <div className="card p-5 mb-5">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Running Balance</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={runningBalance}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+                <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, 'Balance']} />
+                <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {loading && <Spinner message="Loading transactions..." />}
         <ErrorMessage message={error} />

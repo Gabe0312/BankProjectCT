@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
+import { Building2, ArrowLeftRight, BarChart3 } from 'lucide-react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 
 const features = [
-  { icon: '🏦', title: 'Multiple Accounts', desc: 'Open savings and checking accounts instantly.' },
-  { icon: '💸', title: 'Easy Transfers', desc: 'Deposit, withdraw, and transfer with one click.' },
-  { icon: '📊', title: 'Transaction History', desc: 'Track every transaction in real time.' },
+  { icon: Building2, title: 'Multiple Accounts', desc: 'Open savings and checking accounts instantly.' },
+  { icon: ArrowLeftRight, title: 'Easy Transfers', desc: 'Deposit, withdraw, and transfer with one click.' },
+  { icon: BarChart3, title: 'Transaction History', desc: 'Track every transaction in real time.' },
 ]
 
 const WelcomePage = () => {
@@ -13,7 +14,7 @@ const WelcomePage = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header appName="BankApp" />
+      <Header appName="NexBank" />
 
       <main className="flex-1">
         {/* Hero */}
@@ -58,7 +59,9 @@ const WelcomePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {features.map(f => (
               <div key={f.title} className="card p-7 text-center hover:shadow-md transition-shadow">
-                <div className="text-4xl mb-4">{f.icon}</div>
+                <div className="text-4xl mb-4">
+                  <f.icon className="w-8 h-8 mx-auto text-indigo-500" />
+                </div>
                 <h5 className="font-bold text-slate-800 mb-2">{f.title}</h5>
                 <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
               </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pencil, X } from 'lucide-react'
 import api from '../services/api'
 
 const AccountCard = ({ account, onAction, onNicknameUpdate }) => {
@@ -43,7 +44,7 @@ const AccountCard = ({ account, onAction, onNicknameUpdate }) => {
                 title="Edit nickname"
                 onClick={() => setEditing(true)}
               >
-                ✏️
+                <Pencil className="w-3 h-3" />
               </button>
             </>
           )}
@@ -60,7 +61,7 @@ const AccountCard = ({ account, onAction, onNicknameUpdate }) => {
                 {saving ? '...' : 'Save'}
               </button>
               <button className="btn-ghost text-xs px-2.5 py-1.5" onClick={() => setEditing(false)}>
-                ✕
+                <X className="w-3 h-3" />
               </button>
             </div>
           )}

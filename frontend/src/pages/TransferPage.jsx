@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { ArrowLeftRight, CheckCircle } from 'lucide-react'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
@@ -70,7 +71,7 @@ const TransferPage = () => {
 
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-200">
-              <span className="text-white text-xl">🔁</span>
+              <ArrowLeftRight className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-extrabold text-slate-800">Transfer Funds</h1>
             <p className="text-slate-400 text-xs mt-1 font-mono">{accountNumber}</p>
@@ -82,7 +83,7 @@ const TransferPage = () => {
 
             {result && (
               <div className="flex items-center gap-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl px-4 py-3 text-sm mb-4">
-                <span>✓</span>
+                <CheckCircle className="w-4 h-4 shrink-0" />
                 <span>Transfer successful! New balance: <strong>${result.from_balance.toFixed(2)}</strong></span>
               </div>
             )}

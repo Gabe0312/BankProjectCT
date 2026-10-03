@@ -27,8 +27,8 @@ const Navbar = ({ username, role, onLogout }) => {
         className="font-bold text-base tracking-tight cursor-pointer flex items-center gap-2 mr-2"
         onClick={() => navigate(role === 'admin' ? '/admin/dashboard' : '/dashboard')}
       >
-        <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-md font-bold">B</span>
-        BankApp
+        <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-md font-bold">N</span>
+        NexBank
       </span>
 
       <span className="w-px h-4 bg-slate-700" />

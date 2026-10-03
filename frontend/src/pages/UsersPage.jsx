@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Lock } from 'lucide-react'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
@@ -36,7 +37,7 @@ const UsersPage = () => {
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
 
         <div className="page-header">
-          <h2 className="section-title">🔐 Registered Users</h2>
+          <h2 className="section-title"><Lock className="inline w-5 h-5 mr-1.5 text-slate-600" />Registered Users</h2>
           <button className="btn-ghost text-sm" onClick={() => navigate('/admin/dashboard')}>← Back</button>
         </div>
 

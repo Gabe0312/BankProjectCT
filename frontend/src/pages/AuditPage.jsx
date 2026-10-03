@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ClipboardList } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
@@ -65,6 +67,11 @@ const AuditPage = () => {
   const totalPages = Math.ceil(records.length / PAGE_SIZE)
   const paginated = records.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
+  const typeFrequency = ['DEPOSIT', 'WITHDRAWAL', 'TRANSFER'].map(type => ({
+    type,
+    count: records.filter(r => r.transaction_type === type).length,
+  }))
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
       <Navbar username={username} role="admin" onLogout={handleLogout} />
@@ -72,7 +79,7 @@ const AuditPage = () => {
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
 
         <div className="page-header">
-          <h2 className="section-title">📋 Audit Log</h2>
+          <h2 className="section-title"><ClipboardList className="inline w-5 h-5 mr-1.5 text-slate-600" />Audit Log</h2>
           <button className="btn-ghost text-sm" onClick={() => navigate('/admin/dashboard')}>← Back</button>
         </div>
 
@@ -95,6 +102,21 @@ const AuditPage = () => {
 
         {loading && <Spinner message="Loading audit records..." />}
         <ErrorMessage message={error} />
+
+        {!loading && !error && records.length > 0 && (
+          <div className="card p-5 mb-6">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Transaction Type Frequency</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={typeFrequency} barSize={48}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="type" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <Tooltip formatter={(value) => [`${value} records`, 'Count']} />
+                <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {!loading && !error && (
           <p className="text-slate-400 text-xs mb-3">{records.length} record(s)</p>

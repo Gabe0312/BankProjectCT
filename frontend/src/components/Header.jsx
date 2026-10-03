@@ -9,7 +9,7 @@ const Header = ({ appName, username, role, onLogout }) => {
         className="font-bold text-base tracking-tight cursor-pointer flex items-center gap-2"
         onClick={() => navigate('/welcome')}
       >
-        <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-md font-bold">B</span>
+        <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-md font-bold">N</span>
         {appName}
       </span>
 

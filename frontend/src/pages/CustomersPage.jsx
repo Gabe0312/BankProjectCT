@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Users, Search } from 'lucide-react'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
@@ -130,7 +131,7 @@ const CustomersPage = () => {
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
 
         <div className="page-header">
-          <h2 className="section-title">👥 Customers</h2>
+          <h2 className="section-title"><Users className="inline w-5 h-5 mr-1.5 text-slate-600" />Customers</h2>
           <button className="btn-ghost text-sm" onClick={() => navigate('/admin/dashboard')}>← Back</button>
         </div>
 
@@ -196,7 +197,9 @@ const CustomersPage = () => {
 
         {/* Search */}
         <div className="flex mb-4" style={{ maxWidth: '340px' }}>
-          <span className="bg-slate-100 border border-r-0 border-slate-200 rounded-l-lg px-3 py-2.5 text-sm text-slate-400">🔍</span>
+          <span className="bg-slate-100 border border-r-0 border-slate-200 rounded-l-lg px-3 py-2.5 text-sm text-slate-400 flex items-center">
+            <Search className="w-4 h-4" />
+          </span>
           <input className="flex-1 border border-slate-200 rounded-r-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             placeholder="Search by first name..." value={search} onChange={handleSearch} />
         </div>

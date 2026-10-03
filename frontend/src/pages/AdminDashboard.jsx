@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Users, Building2, ClipboardList, Lock, DollarSign } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import api from '../services/api'
 import Navbar from '../components/Navbar'
 import Spinner from '../components/Spinner'
 
 const adminLinks = [
-  { icon: '👥', label: 'Customers', path: '/admin/customers', desc: 'View, search & manage customers' },
-  { icon: '🏦', label: 'Accounts',  path: '/admin/accounts',  desc: 'All accounts & premium filter' },
-  { icon: '📋', label: 'Audit Log', path: '/admin/audit',     desc: 'Review all financial activity' },
-  { icon: '🔐', label: 'Users',     path: '/admin/users',     desc: 'Registered system users' },
+  { icon: Users,         label: 'Customers', path: '/admin/customers', desc: 'View, search & manage customers' },
+  { icon: Building2,     label: 'Accounts',  path: '/admin/accounts',  desc: 'All accounts & premium filter' },
+  { icon: ClipboardList, label: 'Audit Log', path: '/admin/audit',     desc: 'Review all financial activity' },
+  { icon: Lock,          label: 'Users',     path: '/admin/users',     desc: 'Registered system users' },
 ]
 
 const AdminDashboard = () => {
@@ -27,10 +29,16 @@ const AdminDashboard = () => {
         ])
         const accounts = accRes.data
         const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
+        const savings  = accounts.filter(a => a.account_type === 'SAVINGS').length
+        const checking = accounts.filter(a => a.account_type === 'CHECKING').length
         setStats({
           customers: custRes.data.length,
           accounts: accounts.length,
           totalBalance,
+          donut: [
+            { name: 'Savings',  value: savings },
+            { name: 'Checking', value: checking },
+          ],
         })
       } catch {
         // stats are non-critical, fail silently
@@ -44,9 +52,9 @@ const AdminDashboard = () => {
   const handleLogout = () => { localStorage.clear(); navigate('/welcome') }
 
   const statCards = stats ? [
-    { label: 'Total Customers', value: stats.customers,                        icon: '👥' },
-    { label: 'Total Accounts',  value: stats.accounts,                         icon: '🏦' },
-    { label: 'Assets Under Management', value: `$${stats.totalBalance.toFixed(2)}`, icon: '💰' },
+    { label: 'Total Customers',         value: stats.customers,                         icon: Users },
+    { label: 'Total Accounts',          value: stats.accounts,                          icon: Building2 },
+    { label: 'Assets Under Management', value: `$${stats.totalBalance.toFixed(2)}`,     icon: DollarSign },
   ] : []
 
   return (
@@ -60,7 +68,7 @@ const AdminDashboard = () => {
           style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%)' }}>
           <div className="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
           <p className="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-1">Admin Panel</p>
-          <p className="text-2xl font-extrabold mb-1">Good to see you, {username} 🛡️</p>
+          <p className="text-2xl font-extrabold mb-1">Good to see you, {username}</p>
           <p className="text-indigo-300 text-sm">Full system access enabled</p>
         </div>
 
@@ -72,8 +80,8 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {statCards.map(s => (
               <div key={s.label} className="card p-5 flex items-center gap-4">
-                <div className="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0">
-                  {s.icon}
+                <div className="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center shrink-0">
+                  <s.icon className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">{s.label}</p>
@@ -81,6 +89,23 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Donut chart */}
+        {!statsLoading && stats?.donut && stats.donut.some(d => d.value > 0) && (
+          <div className="card p-5 mb-8">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Account Type Breakdown</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={stats.donut} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
+                  <Cell fill="#6366f1" />
+                  <Cell fill="#94a3b8" />
+                </Pie>
+                <Tooltip formatter={(value) => [`${value} accounts`, '']} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         )}
 
@@ -93,9 +118,9 @@ const AdminDashboard = () => {
               className="card p-6 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
               onClick={() => navigate(link.path)}
             >
-              <div className="bg-indigo-50 w-11 h-11 rounded-xl flex items-center justify-center text-2xl mb-4">
-                {link.icon}
-              </div>
+              <div className="bg-indigo-50 w-11 h-11 rounded-xl flex items-center justify-center mb-4">
+                  <link.icon className="w-5 h-5 text-indigo-600" />
+                </div>
               <h5 className="font-bold text-indigo-700 mb-1 text-sm">{link.label}</h5>
               <p className="text-slate-500 text-xs leading-relaxed">{link.desc}</p>
             </div>
