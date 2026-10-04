@@ -48,12 +48,21 @@ async def find_by_customer_id(customer_id: str):
     return accounts
 
 
-# find_premium: returns all accounts whose balance is >= the given threshold
-async def find_premium(threshold: float):
+# find_premium: returns accounts whose balance is >= threshold cents
+async def find_premium(threshold_cents: int):
     db = get_database()
     accounts = []
-    # MongoDB $gte operator — balance greater than or equal to threshold
-    async for account in db.accounts.find({"balance": {"$gte": threshold}}):
+    legacy_threshold = threshold_cents / 100
+    query = {
+        "$or": [
+            {"balance_cents": {"$gte": threshold_cents}},
+            {
+                "balance_cents": {"$exists": False},
+                "balance": {"$gte": legacy_threshold},
+            },
+        ]
+    }
+    async for account in db.accounts.find(query):
         account["_id"] = str(account["_id"])
         accounts.append(account)
     return accounts

@@ -44,12 +44,15 @@ const CustomerDashboard = () => {
 
   const handleLogout = () => { localStorage.clear(); navigate('/welcome') }
 
-  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
+  const totalBalanceCents = accounts.reduce(
+    (sum, account) => sum + (account.balance_cents ?? Math.round(account.balance * 100)),
+    0,
+  )
 
   const COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#e0e7ff']
   const donutData = accounts.map(a => ({
     name: a.nickname || a.account_type,
-    value: parseFloat(a.balance.toFixed(2)),
+    value: (a.balance_cents ?? Math.round(a.balance * 100)) / 100,
   }))
 
   return (
@@ -63,7 +66,7 @@ const CustomerDashboard = () => {
           style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%)' }}>
           <div className="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
           <p className="text-indigo-300 text-xs font-semibold uppercase tracking-widest mb-1">Total Balance</p>
-          <p className="text-4xl font-extrabold mb-1">${totalBalance.toFixed(2)}</p>
+          <p className="text-4xl font-extrabold mb-1">${(totalBalanceCents / 100).toFixed(2)}</p>
           <p className="text-indigo-300 text-sm">Welcome back, <span className="text-white font-semibold">{username}</span></p>
         </div>
 

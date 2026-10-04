@@ -28,13 +28,16 @@ const AdminDashboard = () => {
           api.get('/api/accounts'),
         ])
         const accounts = accRes.data
-        const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0)
+        const totalBalanceCents = accounts.reduce(
+          (sum, account) => sum + (account.balance_cents ?? Math.round(account.balance * 100)),
+          0,
+        )
         const savings  = accounts.filter(a => a.account_type === 'SAVINGS').length
         const checking = accounts.filter(a => a.account_type === 'CHECKING').length
         setStats({
           customers: custRes.data.length,
           accounts: accounts.length,
-          totalBalance,
+          totalBalanceCents,
           donut: [
             { name: 'Savings',  value: savings },
             { name: 'Checking', value: checking },
@@ -54,7 +57,7 @@ const AdminDashboard = () => {
   const statCards = stats ? [
     { label: 'Total Customers',         value: stats.customers,                         icon: Users },
     { label: 'Total Accounts',          value: stats.accounts,                          icon: Building2 },
-    { label: 'Assets Under Management', value: `$${stats.totalBalance.toFixed(2)}`,     icon: DollarSign },
+    { label: 'Assets Under Management', value: `$${(stats.totalBalanceCents / 100).toFixed(2)}`, icon: DollarSign },
   ] : []
 
   return (

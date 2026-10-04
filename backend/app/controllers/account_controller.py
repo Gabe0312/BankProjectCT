@@ -1,3 +1,4 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends
 from app.models.account import Account, CreateAccountRequest, AmountRequest, TransferRequest, UpdateAccountRequest, NicknameRequest
 from app.models.transaction import Transaction
@@ -22,7 +23,7 @@ async def get_all_accounts(current_user: dict = Depends(require_admin)):
 # GET /accounts/premium?threshold=X — admin only, returns accounts with balance >= threshold
 # NOTE: defined BEFORE /accounts/{account_id} to avoid FastAPI matching "premium" as an id
 @router.get("/accounts/premium")
-async def get_premium_accounts(threshold: float, current_user: dict = Depends(require_admin)):
+async def get_premium_accounts(threshold: Decimal, current_user: dict = Depends(require_admin)):
     return await account_service.get_premium_accounts(threshold)
 
 

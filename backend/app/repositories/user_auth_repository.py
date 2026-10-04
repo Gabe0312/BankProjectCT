@@ -1,4 +1,5 @@
 from app.database.db import get_database
+from pymongo.errors import DuplicateKeyError
 
 
 # save: inserts a new user_auth document into the user_auth collection
@@ -18,6 +19,30 @@ async def find_by_username(username: str):
     if user:
         user["_id"] = str(user["_id"])
     return user
+
+
+async def find_admin():
+    db = get_database()
+    return await db.user_auth.find_one({"role": "admin"}, {"_id": 1})
+
+
+async def create_admin_if_missing(user: dict) -> bool:
+    db = get_database()
+    await db.user_auth.create_index(
+        "role",
+        unique=True,
+        partialFilterExpression={"role": "admin"},
+        name="unique_admin_role",
+    )
+    try:
+        result = await db.user_auth.update_one(
+            {"role": "admin"},
+            {"$setOnInsert": user},
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        return False
+    return result.upserted_id is not None
 
 
 # find_all: returns every user document in the user_auth collection

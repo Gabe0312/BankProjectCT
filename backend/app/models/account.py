@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
@@ -35,14 +36,14 @@ class CreateAccountRequest(BaseModel):
 
 # Request model for deposit and withdrawal operations
 class AmountRequest(BaseModel):
-    amount: float
+    amount: Decimal = Field(gt=Decimal("0"), max_digits=12, decimal_places=2)
 
 
 # Request model for transferring funds between two accounts
 class TransferRequest(BaseModel):
     from_account_id: str
     to_account_id: str
-    amount: float
+    amount: Decimal = Field(gt=Decimal("0"), max_digits=12, decimal_places=2)
 
 
 # Request model for updating an existing account
@@ -62,6 +63,7 @@ class Account(BaseModel):
     # customer_id references the customer document in the customers collection
     customer_id: str
     balance: float
+    balance_cents: Optional[int] = None
     account_type: AccountType
     created_at: datetime = None
     # Transactions are embedded directly inside the account document

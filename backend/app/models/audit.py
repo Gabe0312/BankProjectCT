@@ -17,4 +17,5 @@ class AuditRecord(BaseModel):
     customer_id: str
     accounts_involved: List[str]
     amount: float
+    amount_cents: Optional[int] = None
     timestamp: datetime = None

@@ -56,14 +56,17 @@ const TransactionHistoryPage = () => {
 
   const runningBalance = useMemo(() => {
     const sorted = [...transactions].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    let balance = 0
-    return sorted.map(txn => {
-      balance += txn.txn_type === 'DEPOSIT' ? txn.amount : -txn.amount
-      return {
+    return sorted.reduce((points, txn) => {
+      const amountCents = txn.amount_cents ?? Math.round(txn.amount * 100)
+      const isCredit = txn.txn_type === 'DEPOSIT' || txn.txn_type === 'TRANSFER IN'
+      const previousBalanceCents = points.at(-1)?.balanceCents ?? 0
+      const balanceCents = previousBalanceCents + (isCredit ? amountCents : -amountCents)
+      return [...points, {
         date: new Date(txn.created_at).toLocaleDateString(),
-        balance: parseFloat(balance.toFixed(2)),
-      }
-    })
+        balanceCents,
+        balance: balanceCents / 100,
+      }]
+    }, [])
   }, [transactions])
 
   const handleExportCSV = () => {

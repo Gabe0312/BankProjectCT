@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional
 
@@ -15,6 +15,8 @@ class Customer(BaseModel):
 
 # Request model for creating a new customer
 class CreateCustomerRequest(BaseModel):
+    username: str = Field(min_length=3)
+    password: str = Field(min_length=6)
     name: str
     email: EmailStr
     phone: str

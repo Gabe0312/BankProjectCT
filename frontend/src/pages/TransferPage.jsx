@@ -38,7 +38,10 @@ const TransferPage = () => {
     e.preventDefault()
     const errs = {}
     if (!toAccountId) errs.toAccountId = 'Please select a destination account'
-    if (!amount || parseFloat(amount) <= 0) errs.amount = 'Amount must be greater than 0'
+    const submittedAmount = amount.trim()
+    if (!/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(submittedAmount) || Number(submittedAmount) <= 0) {
+      errs.amount = 'Enter an amount greater than 0 with no more than two decimal places'
+    }
     if (Object.keys(errs).length) { setErrors(errs); return }
     setErrors({})
     setLoading(true)
@@ -48,7 +51,7 @@ const TransferPage = () => {
       const res = await api.post('/api/accounts/transfer', {
         from_account_id: fromAccountId,
         to_account_id: toAccountId,
-        amount: parseFloat(amount)
+        amount: submittedAmount
       })
       setResult(res.data)
       setAmount('')

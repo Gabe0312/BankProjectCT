@@ -114,10 +114,10 @@ export const deleteCustomer = async (customerId) => {
   }
 }
 
-// POST /api/customers — admin creates a customer directly
-export const postCustomer = async (name, email, phone) => {
+// POST /api/customers — admin creates a customer and linked login
+export const postCustomer = async (username, password, name, email, phone) => {
   try {
-    const res = await api.post('/api/customers', { name, email, phone })
+    const res = await api.post('/api/customers', { username, password, name, email, phone })
     return { data: res.data }
   } catch (err) {
     return { error: err.error || 'Failed to create customer' }
@@ -201,7 +201,7 @@ export const getAccountsByCustomer = async (customerId) => {
 // POST /api/accounts/{id}/deposit
 export const deposit = async (accountId, amount) => {
   try {
-    const res = await api.post(`/api/accounts/${accountId}/deposit`, { amount })
+    const res = await api.post(`/api/accounts/${accountId}/deposit`, { amount: String(amount) })
     return { data: res.data }
   } catch (err) {
     return { error: err.error || 'Deposit failed' }
@@ -211,7 +211,7 @@ export const deposit = async (accountId, amount) => {
 // POST /api/accounts/{id}/withdraw
 export const withdraw = async (accountId, amount) => {
   try {
-    const res = await api.post(`/api/accounts/${accountId}/withdraw`, { amount })
+    const res = await api.post(`/api/accounts/${accountId}/withdraw`, { amount: String(amount) })
     return { data: res.data }
   } catch (err) {
     return { error: err.error || 'Withdrawal failed' }
@@ -221,7 +221,7 @@ export const withdraw = async (accountId, amount) => {
 // POST /api/accounts/transfer
 export const transfer = async (fromAccountId, toAccountId, amount) => {
   try {
-    const res = await api.post('/api/accounts/transfer', { from_account_id: fromAccountId, to_account_id: toAccountId, amount })
+    const res = await api.post('/api/accounts/transfer', { from_account_id: fromAccountId, to_account_id: toAccountId, amount: String(amount) })
     return { data: res.data }
   } catch (err) {
     return { error: err.error || 'Transfer failed' }

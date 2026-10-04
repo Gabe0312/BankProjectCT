@@ -21,13 +21,17 @@ const DepositPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!amount || parseFloat(amount) <= 0) { setFieldError('Amount must be greater than 0'); return }
+    const submittedAmount = amount.trim()
+    if (!/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(submittedAmount) || Number(submittedAmount) <= 0) {
+      setFieldError('Enter an amount greater than 0 with no more than two decimal places')
+      return
+    }
     setFieldError('')
     setLoading(true)
     setError('')
     setUpdatedBalance(null)
     try {
-      const res = await api.post(`/api/accounts/${accountId}/deposit`, { amount: parseFloat(amount) })
+      const res = await api.post(`/api/accounts/${accountId}/deposit`, { amount: submittedAmount })
       setUpdatedBalance(res.data.balance)
       setAmount('')
     } catch (err) {

@@ -16,7 +16,6 @@ const CustomersPage = () => {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [addMode, setAddMode] = useState('quick') // 'quick' | 'login'
   const [newCustomer, setNewCustomer] = useState({ name: '', email: '', phone: '', username: '', password: '' })
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
@@ -62,31 +61,21 @@ const CustomersPage = () => {
   const handleCreate = async (e) => {
     e.preventDefault()
     setCreateError('')
-    if (addMode === 'login') {
-      if (newCustomer.username.trim().length < 3) return setCreateError('Username must be at least 3 characters')
-      if (newCustomer.username.toLowerCase() === 'admin') return setCreateError("Username 'admin' is reserved")
-      if (newCustomer.password.length < 6) return setCreateError('Password must be at least 6 characters')
-    }
+    if (newCustomer.username.trim().length < 3) return setCreateError('Username must be at least 3 characters')
+    if (newCustomer.username.trim().toLowerCase() === 'admin') return setCreateError("Username 'admin' is reserved")
+    if (newCustomer.password.length < 6) return setCreateError('Password must be at least 6 characters')
     setCreating(true)
     try {
-      if (addMode === 'login') {
-        await api.post('/auth/register', {
-          username: newCustomer.username,
-          password: newCustomer.password,
-          name: newCustomer.name,
-          email: newCustomer.email,
-          phone: newCustomer.phone,
-        })
-        // fetch updated list since register doesn't return the customer directly
-        const res = await api.get('/api/customers')
-        setCustomers(res.data)
-        setFiltered(res.data)
-      } else {
-        const res = await api.post('/api/customers', { name: newCustomer.name, email: newCustomer.email, phone: newCustomer.phone })
-        const updated = [...customers, res.data]
-        setCustomers(updated)
-        setFiltered(updated)
-      }
+      await api.post('/auth/register', {
+        username: newCustomer.username.trim(),
+        password: newCustomer.password,
+        name: newCustomer.name,
+        email: newCustomer.email,
+        phone: newCustomer.phone,
+      })
+      const res = await api.get('/api/customers')
+      setCustomers(res.data)
+      setFiltered(res.data)
       setNewCustomer({ name: '', email: '', phone: '', username: '', password: '' })
     } catch (err) {
       setCreateError(err.response?.data?.detail || err.error || 'Failed to create customer')
@@ -139,32 +128,9 @@ const CustomersPage = () => {
         <div className="card mb-6 overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Add Customer</span>
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => { setAddMode('quick'); setCreateError('') }}
-                className={`px-3 py-1.5 transition-colors ${
-                  addMode === 'quick' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                }`}>
-                Quick Add
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAddMode('login'); setCreateError('') }}
-                className={`px-3 py-1.5 transition-colors ${
-                  addMode === 'login' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                }`}>
-                Add with Login
-              </button>
-            </div>
           </div>
           <div className="p-5">
-            {addMode === 'login' && (
-              <p className="text-xs text-slate-500 mb-3">Creates a customer record <span className="font-semibold text-indigo-600">and</span> a login account — customer can sign in immediately.</p>
-            )}
-            {addMode === 'quick' && (
-              <p className="text-xs text-slate-500 mb-3">Creates a data record only — no login credentials.</p>
-            )}
+            <p className="text-xs text-slate-500 mb-3">Creates the customer record and login credentials together.</p>
             <form onSubmit={handleCreate} className="flex flex-wrap gap-3 items-end">
               {[['Name', 'name'], ['Email', 'email'], ['Phone', 'phone']].map(([label, key]) => (
                 <div key={key} className="flex-1 min-w-36">
@@ -173,20 +139,16 @@ const CustomersPage = () => {
                     onChange={e => { setNewCustomer({ ...newCustomer, [key]: e.target.value }); setCreateError('') }} />
                 </div>
               ))}
-              {addMode === 'login' && (
-                <>
-                  <div className="flex-1 min-w-36">
-                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Username</label>
-                    <input className="input" placeholder="Username" value={newCustomer.username} required
-                      onChange={e => { setNewCustomer({ ...newCustomer, username: e.target.value }); setCreateError('') }} />
-                  </div>
-                  <div className="flex-1 min-w-36">
-                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
-                    <input className="input" type="password" placeholder="Password" value={newCustomer.password} required
-                      onChange={e => { setNewCustomer({ ...newCustomer, password: e.target.value }); setCreateError('') }} />
-                  </div>
-                </>
-              )}
+              <div className="flex-1 min-w-36">
+                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Username</label>
+                <input className="input" placeholder="Username" value={newCustomer.username} required
+                  onChange={e => { setNewCustomer({ ...newCustomer, username: e.target.value }); setCreateError('') }} />
+              </div>
+              <div className="flex-1 min-w-36">
+                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
+                <input className="input" type="password" placeholder="Password" value={newCustomer.password} required
+                  onChange={e => { setNewCustomer({ ...newCustomer, password: e.target.value }); setCreateError('') }} />
+              </div>
               <button className="btn-primary" type="submit" disabled={creating}>
                 {creating ? 'Adding...' : '+ Add'}
               </button>

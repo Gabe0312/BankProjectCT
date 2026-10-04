@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import secrets
 from fastapi import HTTPException
 from passlib.context import CryptContext
 import app.repositories.user_auth_repository as user_repo
@@ -10,6 +12,30 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # "admin" is reserved — no customer can register with this username
 RESERVED_USERNAME = "admin"
+
+
+async def bootstrap_admin(password: str, supplied_token: str | None) -> dict:
+    expected_token = os.getenv("ADMIN_BOOTSTRAP_TOKEN")
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="Admin bootstrap is not configured")
+    if len(expected_token) < 32:
+        raise HTTPException(status_code=503, detail="Admin bootstrap token must be at least 32 characters")
+    if not supplied_token or not secrets.compare_digest(supplied_token, expected_token):
+        raise HTTPException(status_code=403, detail="Invalid bootstrap token")
+    if await user_repo.find_admin():
+        raise HTTPException(status_code=409, detail="An admin account already exists")
+
+    admin = {
+        "username": RESERVED_USERNAME,
+        "password_hash": pwd_context.hash(password),
+        "role": "admin",
+        "customer_id": None,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    if not await user_repo.create_admin_if_missing(admin):
+        raise HTTPException(status_code=409, detail="An admin account already exists")
+
+    return {"message": "Admin account created. Sign in at /auth/login."}
 
 
 # register: creates a new customer user account

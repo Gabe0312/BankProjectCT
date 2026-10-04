@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
@@ -26,6 +26,10 @@ class RegisterRequest(BaseModel):
     name: str
     email: str
     phone: str
+
+
+class BootstrapAdminRequest(BaseModel):
+    password: str = Field(min_length=8)
 
 
 # Request model for login — returns a JWT on success

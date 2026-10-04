@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from app.models.customer import CreateCustomerRequest, UpdateCustomerRequest
 import app.services.customer_service as customer_service
+import app.services.auth_service as auth_service
 from app.dependencies.jwt_dependencies import require_admin
 
 router = APIRouter()
@@ -15,7 +16,13 @@ async def get_all_customers(current_user: dict = Depends(require_admin)):
 # POST /customers — admin only, creates a new customer
 @router.post("/customers")
 async def create_customer(body: CreateCustomerRequest, current_user: dict = Depends(require_admin)):
-    return await customer_service.create_customer(body.name, body.email, body.phone)
+    return await auth_service.register(
+        body.username,
+        body.password,
+        body.name,
+        body.email,
+        body.phone,
+    )
 
 
 # GET /customers/{customer_id} — admin only, returns a single customer by id
