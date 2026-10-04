@@ -84,11 +84,20 @@ On macOS/Linux, activate the virtual environment with `source .venv/bin/activate
 
 ### Configure the frontend
 
-Create `frontend/.env` and replace the placeholder with your backend API base URL:
+Create `frontend/.env` and replace the placeholder with your deployed backend API base URL:
 
 ```dotenv
 VITE_API_URL=YOUR_BACKEND_API_BASE_URL
 ```
+Create `frontend/.env.development.local` for the local backend override:
+
+```dotenv
+VITE_API_URL=http://localhost:8000
+```
+
+If you already have a `frontend/.env.local` containing the localhost override, rename it to `frontend/.env.development.local`. Vite loads `.env.local` in both development and production, which can cause a deployed frontend to call the visitor's localhost instead of the deployed API. The development-only file keeps local development separate from production builds.
+
+Both environment files remain ignored by Git and must be created locally. Never put secrets in `VITE_` variables; Vite includes them in the browser bundle. After changing the production API URL, rebuild with `npm run build`, upload the contents of `frontend/dist` to the frontend S3 bucket, and invalidate `/*` in CloudFront.
 
 Then install dependencies and start the Vite development server:
 
